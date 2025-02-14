@@ -7,6 +7,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import RawMaterials from "@/pages/RawMaterials";
+import PackagingGoods from "@/pages/PackagingGoods";
+import FinishedGoods from "@/pages/FinishedGoods";
+import LossRecords from "@/pages/LossRecords";
+import PurchaseRecords from "@/pages/PurchaseRecords";
 import NotFound from "@/pages/NotFound";
 import Layout from "@/components/Layout";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
@@ -43,7 +48,11 @@ const App = () => {
                 }
               >
                 <Route index element={<Dashboard />} />
-                {/* We'll add more routes here later */}
+                <Route path="raw-goods" element={<RawMaterials />} />
+                <Route path="packaging-goods" element={<PackagingGoods />} />
+                <Route path="finished-goods" element={<FinishedGoods />} />
+                <Route path="loss-records" element={<LossRecords />} />
+                <Route path="purchase-records" element={<PurchaseRecords />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
