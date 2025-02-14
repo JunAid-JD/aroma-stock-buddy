@@ -1,9 +1,10 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Box, Archive, AlertTriangle } from "lucide-react";
 import DataTable from "@/components/DataTable";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 const DashboardCard = ({
   title,
@@ -40,22 +41,28 @@ const Dashboard = () => {
   const { data: counts } = useQuery({
     queryKey: ["inventoryCounts"],
     queryFn: async () => {
-      const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
-        supabase.from("raw_materials").select("count"),
-        supabase.from("packaging_items").select("count"),
-        supabase.from("finished_products").select("count"),
-      ]);
+      const rawMaterials = await supabase
+        .from("raw_materials")
+        .select("id");
+      
+      const packagingItems = await supabase
+        .from("packaging_items")
+        .select("id");
+      
+      const finishedProducts = await supabase
+        .from("finished_products")
+        .select("id");
 
       const lowStockItems = await supabase
         .from("raw_materials")
-        .select("count")
-        .lte("quantity_in_stock", "reorder_point");
+        .select("id")
+        .lt("quantity_in_stock", supabase.raw("reorder_point"));
 
       return {
-        rawMaterials: rawMaterials.count || 0,
-        packagingItems: packagingItems.count || 0,
-        finishedProducts: finishedProducts.count || 0,
-        lowStockAlerts: lowStockItems.count || 0,
+        rawMaterials: rawMaterials.data?.length || 0,
+        packagingItems: packagingItems.data?.length || 0,
+        finishedProducts: finishedProducts.data?.length || 0,
+        lowStockAlerts: lowStockItems.data?.length || 0,
       };
     },
   });
@@ -66,7 +73,11 @@ const Dashboard = () => {
       const { data, error } = await supabase
         .from("production_batches")
         .select(`
-          *,
+          id,
+          batch_number,
+          quantity_produced,
+          production_date,
+          status,
           finished_products (
             name
           )
@@ -76,7 +87,7 @@ const Dashboard = () => {
 
       if (error) throw error;
       
-      return data.map(batch => ({
+      return (data || []).map(batch => ({
         ...batch,
         product_name: batch.finished_products?.name
       }));
@@ -134,11 +145,21 @@ const Dashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <DataTable
-              columns={productionBatchColumns}
-              data={recentBatches || []}
-              isLoading={isLoadingBatches}
-            />
+            {recentBatches?.length ? (
+              <DataTable
+                columns={productionBatchColumns}
+                data={recentBatches}
+                isLoading={isLoadingBatches}
+              />
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">No production history available</p>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Production Batch
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
