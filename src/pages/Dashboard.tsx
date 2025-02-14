@@ -1,6 +1,9 @@
 
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Box, Archive, AlertTriangle } from "lucide-react";
+import DataTable from "@/components/DataTable";
 
 const DashboardCard = ({
   title,
@@ -9,7 +12,7 @@ const DashboardCard = ({
   icon: Icon,
 }: {
   title: string;
-  value: string;
+  value: string | number;
   description: string;
   icon: any;
 }) => (
@@ -25,30 +28,83 @@ const DashboardCard = ({
   </Card>
 );
 
+const productionBatchColumns = [
+  { key: "batch_number", label: "Batch #" },
+  { key: "product_name", label: "Product" },
+  { key: "quantity_produced", label: "Quantity" },
+  { key: "production_date", label: "Date", isDate: true },
+  { key: "status", label: "Status" },
+];
+
 const Dashboard = () => {
-  // These will be replaced with real data later
+  const { data: counts } = useQuery({
+    queryKey: ["inventoryCounts"],
+    queryFn: async () => {
+      const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
+        supabase.from("raw_materials").select("count"),
+        supabase.from("packaging_items").select("count"),
+        supabase.from("finished_products").select("count"),
+      ]);
+
+      const lowStockItems = await supabase
+        .from("raw_materials")
+        .select("count")
+        .lte("quantity_in_stock", "reorder_point");
+
+      return {
+        rawMaterials: rawMaterials.count || 0,
+        packagingItems: packagingItems.count || 0,
+        finishedProducts: finishedProducts.count || 0,
+        lowStockAlerts: lowStockItems.count || 0,
+      };
+    },
+  });
+
+  const { data: recentBatches, isLoading: isLoadingBatches } = useQuery({
+    queryKey: ["recentBatches"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_batches")
+        .select(`
+          *,
+          finished_products (
+            name
+          )
+        `)
+        .order("production_date", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      
+      return data.map(batch => ({
+        ...batch,
+        product_name: batch.finished_products?.name
+      }));
+    },
+  });
+
   const dashboardData = [
     {
-      title: "Raw Goods",
-      value: "15",
+      title: "Raw Materials",
+      value: counts?.rawMaterials || 0,
       description: "Total SKUs in stock",
       icon: Box,
     },
     {
-      title: "Packaging Goods",
-      value: "24",
+      title: "Packaging Items",
+      value: counts?.packagingItems || 0,
       description: "Available items",
       icon: Package,
     },
     {
-      title: "Finished Goods",
-      value: "42",
+      title: "Finished Products",
+      value: counts?.finishedProducts || 0,
       description: "Ready for shipment",
       icon: Archive,
     },
     {
       title: "Low Stock Alerts",
-      value: "3",
+      value: counts?.lowStockAlerts || 0,
       description: "Items need attention",
       icon: AlertTriangle,
     },
@@ -72,15 +128,17 @@ const Dashboard = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle>Recent Production Batches</CardTitle>
             <CardDescription>
-              Your latest inventory movements
+              Latest production activities
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Activity feed coming soon...
-            </p>
+            <DataTable
+              columns={productionBatchColumns}
+              data={recentBatches || []}
+              isLoading={isLoadingBatches}
+            />
           </CardContent>
         </Card>
 
@@ -92,6 +150,7 @@ const Dashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* We'll add charts in the next iteration */}
             <p className="text-sm text-muted-foreground">
               Stock charts coming soon...
             </p>

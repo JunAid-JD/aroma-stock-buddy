@@ -51,6 +51,42 @@ export type Database = {
         }
         Relationships: []
       }
+      loss_records: {
+        Row: {
+          cost_impact: number
+          created_at: string | null
+          date: string | null
+          id: string
+          item_id: string
+          item_type: Database["public"]["Enums"]["product_category"]
+          quantity: number
+          reason: string
+          updated_at: string | null
+        }
+        Insert: {
+          cost_impact: number
+          created_at?: string | null
+          date?: string | null
+          id?: string
+          item_id: string
+          item_type: Database["public"]["Enums"]["product_category"]
+          quantity: number
+          reason: string
+          updated_at?: string | null
+        }
+        Update: {
+          cost_impact?: number
+          created_at?: string | null
+          date?: string | null
+          id?: string
+          item_id?: string
+          item_type?: Database["public"]["Enums"]["product_category"]
+          quantity?: number
+          reason?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       packaging_items: {
         Row: {
           created_at: string | null
@@ -138,6 +174,89 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      production_batches: {
+        Row: {
+          batch_number: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          product_id: string
+          production_date: string | null
+          quantity_produced: number
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          batch_number: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          product_id: string
+          production_date?: string | null
+          quantity_produced: number
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          batch_number?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string
+          production_date?: string | null
+          quantity_produced?: number
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batches_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "finished_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_records: {
+        Row: {
+          created_at: string | null
+          date: string | null
+          id: string
+          item_id: string
+          item_type: Database["public"]["Enums"]["product_category"]
+          quantity: number
+          supplier: string
+          total_cost: number
+          unit_cost: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date?: string | null
+          id?: string
+          item_id: string
+          item_type: Database["public"]["Enums"]["product_category"]
+          quantity: number
+          supplier: string
+          total_cost: number
+          unit_cost: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string | null
+          id?: string
+          item_id?: string
+          item_type?: Database["public"]["Enums"]["product_category"]
+          quantity?: number
+          supplier?: string
+          total_cost?: number
+          unit_cost?: number
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       raw_materials: {
         Row: {
