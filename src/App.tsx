@@ -12,6 +12,7 @@ import PackagingGoods from "@/pages/PackagingGoods";
 import FinishedGoods from "@/pages/FinishedGoods";
 import LossRecords from "@/pages/LossRecords";
 import PurchaseRecords from "@/pages/PurchaseRecords";
+import ProductionHistory from "@/pages/ProductionHistory";
 import NotFound from "@/pages/NotFound";
 import Layout from "@/components/Layout";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
@@ -53,6 +54,7 @@ const App = () => {
                 <Route path="finished-goods" element={<FinishedGoods />} />
                 <Route path="loss-records" element={<LossRecords />} />
                 <Route path="purchase-records" element={<PurchaseRecords />} />
+                <Route path="production-history" element={<ProductionHistory />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

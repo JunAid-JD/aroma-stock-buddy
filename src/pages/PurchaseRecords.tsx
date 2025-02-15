@@ -26,31 +26,52 @@ const PurchaseRecords = () => {
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [selectedItemType, setSelectedItemType] = useState<string>("");
+  const [selectedItemType, setSelectedItemType] = useState<string>(selectedRecord?.item_type || "");
 
   const { data: purchaseRecords, isLoading } = useQuery({
     queryKey: ["purchaseRecords"],
     queryFn: async () => {
       const { data: records, error } = await supabase
         .from("purchase_records")
-        .select(`
-          *,
-          raw_materials (name),
-          packaging_items (name),
-          finished_products (name)
-        `)
+        .select("*")
         .order("date", { ascending: false });
       
       if (error) throw error;
 
-      return (records || []).map(record => ({
-        ...record,
-        item_name: 
-          record.raw_materials?.name || 
-          record.packaging_items?.name || 
-          record.finished_products?.name || 
-          'Unknown Item'
-      }));
+      // Fetch item names separately
+      const itemPromises = records.map(async (record) => {
+        let itemName = 'Unknown Item';
+        
+        if (record.item_type === 'raw_material') {
+          const { data } = await supabase
+            .from('raw_materials')
+            .select('name')
+            .eq('id', record.item_id)
+            .single();
+          if (data) itemName = data.name;
+        } else if (record.item_type === 'packaging') {
+          const { data } = await supabase
+            .from('packaging_items')
+            .select('name')
+            .eq('id', record.item_id)
+            .single();
+          if (data) itemName = data.name;
+        } else if (record.item_type === 'finished_product') {
+          const { data } = await supabase
+            .from('finished_products')
+            .select('name')
+            .eq('id', record.item_id)
+            .single();
+          if (data) itemName = data.name;
+        }
+
+        return {
+          ...record,
+          item_name: itemName
+        };
+      });
+
+      return Promise.all(itemPromises);
     },
   });
 
@@ -91,6 +112,8 @@ const PurchaseRecords = () => {
         description: `Record ${selectedRecord ? "updated" : "added"} successfully.`,
       });
       setIsDialogOpen(false);
+      setSelectedRecord(null);
+      setSelectedItemType("");
     } catch (error) {
       toast({
         title: "Error",
@@ -102,11 +125,13 @@ const PurchaseRecords = () => {
 
   const handleAdd = () => {
     setSelectedRecord(null);
+    setSelectedItemType("");
     setIsDialogOpen(true);
   };
 
   const handleEdit = (record: any) => {
     setSelectedRecord(record);
+    setSelectedItemType(record.item_type);
     setIsDialogOpen(true);
   };
 
@@ -150,7 +175,7 @@ const PurchaseRecords = () => {
               unit_cost: unitCost,
               total_cost: quantity * unitCost,
               supplier: formData.get("supplier") as string,
-              date: new Date().toISOString(),
+              date: selectedRecord?.date || new Date().toISOString(),
             };
             handleSubmit(data);
           }}>
@@ -159,7 +184,7 @@ const PurchaseRecords = () => {
                 <Label htmlFor="item_type">Type</Label>
                 <Select
                   name="item_type"
-                  defaultValue={selectedRecord?.item_type}
+                  value={selectedItemType}
                   onValueChange={setSelectedItemType}
                 >
                   <SelectTrigger>
@@ -175,7 +200,10 @@ const PurchaseRecords = () => {
 
               <div>
                 <Label htmlFor="item_id">Item</Label>
-                <Select name="item_id" defaultValue={selectedRecord?.item_id}>
+                <Select 
+                  name="item_id" 
+                  defaultValue={selectedRecord?.item_id}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select item" />
                   </SelectTrigger>
@@ -228,7 +256,11 @@ const PurchaseRecords = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsDialogOpen(false)}
+                onClick={() => {
+                  setIsDialogOpen(false);
+                  setSelectedRecord(null);
+                  setSelectedItemType("");
+                }}
               >
                 Cancel
               </Button>
