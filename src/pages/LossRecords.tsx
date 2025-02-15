@@ -10,11 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { format } from "date-fns";
 
 const columns = [
   { key: "date", label: "Date", isDate: true },
-  { key: "item_id", label: "Item" },
+  { key: "item_name", label: "Item" },
   { key: "item_type", label: "Type" },
   { key: "quantity", label: "Quantity Lost" },
   { key: "reason", label: "Reason" },
@@ -30,13 +29,43 @@ const LossRecords = () => {
   const { data: lossRecords, isLoading } = useQuery({
     queryKey: ["lossRecords"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: records, error } = await supabase
         .from("loss_records")
-        .select("*")
+        .select(`
+          *,
+          raw_materials (name),
+          packaging_items (name),
+          finished_products (name)
+        `)
         .order("date", { ascending: false });
       
       if (error) throw error;
-      return data || [];
+
+      return (records || []).map(record => ({
+        ...record,
+        item_name: 
+          record.raw_materials?.name || 
+          record.packaging_items?.name || 
+          record.finished_products?.name || 
+          'Unknown Item'
+      }));
+    },
+  });
+
+  const { data: items } = useQuery({
+    queryKey: ["allItems"],
+    queryFn: async () => {
+      const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
+        supabase.from("raw_materials").select("id, name"),
+        supabase.from("packaging_items").select("id, name"),
+        supabase.from("finished_products").select("id, name"),
+      ]);
+
+      return {
+        raw_material: rawMaterials.data || [],
+        packaging: packagingItems.data || [],
+        finished_product: finishedProducts.data || [],
+      };
     },
   });
 
@@ -79,6 +108,8 @@ const LossRecords = () => {
     setIsDialogOpen(true);
   };
 
+  const [selectedItemType, setSelectedItemType] = useState<string>("");
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -111,10 +142,10 @@ const LossRecords = () => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
             const data = {
-              item_id: formData.get("item_id"),
-              item_type: formData.get("item_type"),
+              item_id: formData.get("item_id") as string,
+              item_type: formData.get("item_type") as "raw_material" | "packaging" | "finished_product",
               quantity: parseFloat(formData.get("quantity") as string),
-              reason: formData.get("reason"),
+              reason: formData.get("reason") as string,
               cost_impact: parseFloat(formData.get("cost_impact") as string),
               date: new Date().toISOString(),
             };
@@ -122,28 +153,35 @@ const LossRecords = () => {
           }}>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="item_id">Item ID</Label>
-                <Input
-                  id="item_id"
-                  name="item_id"
-                  defaultValue={selectedRecord?.item_id}
-                  required
-                />
-              </div>
-              
-              <div>
                 <Label htmlFor="item_type">Type</Label>
                 <Select
                   name="item_type"
                   defaultValue={selectedRecord?.item_type}
+                  onValueChange={setSelectedItemType}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="raw">Raw Material</SelectItem>
+                    <SelectItem value="raw_material">Raw Material</SelectItem>
                     <SelectItem value="packaging">Packaging</SelectItem>
-                    <SelectItem value="finished">Finished Product</SelectItem>
+                    <SelectItem value="finished_product">Finished Product</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="item_id">Item</Label>
+                <Select name="item_id" defaultValue={selectedRecord?.item_id}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select item" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedItemType && items && items[selectedItemType]?.map((item: any) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

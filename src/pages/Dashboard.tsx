@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,6 +6,7 @@ import { Package, Box, Archive, AlertTriangle } from "lucide-react";
 import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const DashboardCard = ({
   title,
@@ -38,31 +40,33 @@ const productionBatchColumns = [
 ];
 
 const Dashboard = () => {
-  const { data: counts } = useQuery({
+  const navigate = useNavigate();
+
+  const { data: counts, isLoading: isLoadingCounts } = useQuery({
     queryKey: ["inventoryCounts"],
     queryFn: async () => {
-      const rawMaterials = await supabase
+      // Get raw materials count and low stock count
+      const { data: rawMaterials } = await supabase
         .from("raw_materials")
-        .select("id");
+        .select("id, quantity_in_stock, reorder_point");
       
-      const packagingItems = await supabase
+      const { data: packagingItems } = await supabase
         .from("packaging_items")
         .select("id");
       
-      const finishedProducts = await supabase
+      const { data: finishedProducts } = await supabase
         .from("finished_products")
         .select("id");
 
-      const lowStockItems = await supabase
-        .from("raw_materials")
-        .select("id")
-        .lt("quantity_in_stock", supabase.raw("reorder_point"));
+      const lowStockItems = (rawMaterials || []).filter(
+        item => item.quantity_in_stock < item.reorder_point
+      ).length;
 
       return {
-        rawMaterials: rawMaterials.data?.length || 0,
-        packagingItems: packagingItems.data?.length || 0,
-        finishedProducts: finishedProducts.data?.length || 0,
-        lowStockAlerts: lowStockItems.data?.length || 0,
+        rawMaterials: rawMaterials?.length || 0,
+        packagingItems: packagingItems?.length || 0,
+        finishedProducts: finishedProducts?.length || 0,
+        lowStockAlerts: lowStockItems,
       };
     },
   });
@@ -139,10 +143,18 @@ const Dashboard = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>Recent Production Batches</CardTitle>
-            <CardDescription>
-              Latest production activities
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Recent Production Batches</CardTitle>
+                <CardDescription>
+                  Latest production activities
+                </CardDescription>
+              </div>
+              <Button onClick={() => navigate("/production-batches")}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Batch
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {recentBatches?.length ? (
@@ -154,7 +166,7 @@ const Dashboard = () => {
             ) : (
               <div className="text-center py-8">
                 <p className="text-muted-foreground mb-4">No production history available</p>
-                <Button>
+                <Button onClick={() => navigate("/production-batches")}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Production Batch
                 </Button>
@@ -171,10 +183,11 @@ const Dashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* We'll add charts in the next iteration */}
-            <p className="text-sm text-muted-foreground">
-              Stock charts coming soon...
-            </p>
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">
+                {isLoadingCounts ? "Loading..." : "Stock overview coming soon..."}
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
