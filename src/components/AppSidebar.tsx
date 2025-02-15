@@ -66,7 +66,7 @@ const AppSidebar = () => {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    active={location.pathname === item.url}
+                    isActive={location.pathname === item.url}
                     onClick={() => navigate(item.url)}
                   >
                     <item.icon className="w-5 h-5" />

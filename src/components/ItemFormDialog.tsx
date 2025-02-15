@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,11 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
   const { toast } = useToast();
   const [formData, setFormData] = useState(item || {});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset form data when item changes
+  useEffect(() => {
+    setFormData(item || {});
+  }, [item]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +75,7 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
                 <div>
                   <Label htmlFor="type">Type</Label>
                   <Select
-                    value={formData.type}
+                    value={formData.type || ''}
                     onValueChange={(value) => handleChange('type', value)}
                   >
                     <SelectTrigger>
@@ -100,7 +105,7 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
                 <div>
                   <Label htmlFor="type">Type</Label>
                   <Select
-                    value={formData.type}
+                    value={formData.type || ''}
                     onValueChange={(value) => handleChange('type', value)}
                   >
                     <SelectTrigger>
@@ -139,7 +144,7 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
                 <div>
                   <Label htmlFor="type">Type</Label>
                   <Select
-                    value={formData.type}
+                    value={formData.type || ''}
                     onValueChange={(value) => handleChange('type', value)}
                   >
                     <SelectTrigger>
