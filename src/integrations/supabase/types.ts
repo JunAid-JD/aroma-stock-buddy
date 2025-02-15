@@ -211,13 +211,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_finished_products_batch"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "finished_products"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "production_batches_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
