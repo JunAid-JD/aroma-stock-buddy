@@ -25,30 +25,52 @@ const LossRecords = () => {
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [selectedItemType, setSelectedItemType] = useState<string>(selectedRecord?.item_type || "");
 
   const { data: lossRecords, isLoading } = useQuery({
     queryKey: ["lossRecords"],
     queryFn: async () => {
       const { data: records, error } = await supabase
         .from("loss_records")
-        .select(`
-          *,
-          raw_materials (name),
-          packaging_items (name),
-          finished_products (name)
-        `)
+        .select("*")
         .order("date", { ascending: false });
       
       if (error) throw error;
 
-      return (records || []).map(record => ({
-        ...record,
-        item_name: 
-          record.raw_materials?.name || 
-          record.packaging_items?.name || 
-          record.finished_products?.name || 
-          'Unknown Item'
-      }));
+      // Fetch item names separately
+      const itemPromises = records.map(async (record) => {
+        let itemName = 'Unknown Item';
+        
+        if (record.item_type === 'raw_material') {
+          const { data } = await supabase
+            .from('raw_materials')
+            .select('name')
+            .eq('id', record.item_id)
+            .single();
+          if (data) itemName = data.name;
+        } else if (record.item_type === 'packaging') {
+          const { data } = await supabase
+            .from('packaging_items')
+            .select('name')
+            .eq('id', record.item_id)
+            .single();
+          if (data) itemName = data.name;
+        } else if (record.item_type === 'finished_product') {
+          const { data } = await supabase
+            .from('finished_products')
+            .select('name')
+            .eq('id', record.item_id)
+            .single();
+          if (data) itemName = data.name;
+        }
+
+        return {
+          ...record,
+          item_name: itemName
+        };
+      });
+
+      return Promise.all(itemPromises);
     },
   });
 
@@ -89,6 +111,8 @@ const LossRecords = () => {
         description: `Record ${selectedRecord ? "updated" : "added"} successfully.`,
       });
       setIsDialogOpen(false);
+      setSelectedRecord(null);
+      setSelectedItemType("");
     } catch (error) {
       toast({
         title: "Error",
@@ -100,15 +124,15 @@ const LossRecords = () => {
 
   const handleAdd = () => {
     setSelectedRecord(null);
+    setSelectedItemType("");
     setIsDialogOpen(true);
   };
 
   const handleEdit = (record: any) => {
     setSelectedRecord(record);
+    setSelectedItemType(record.item_type);
     setIsDialogOpen(true);
   };
-
-  const [selectedItemType, setSelectedItemType] = useState<string>("");
 
   return (
     <div className="space-y-6">
@@ -147,7 +171,7 @@ const LossRecords = () => {
               quantity: parseFloat(formData.get("quantity") as string),
               reason: formData.get("reason") as string,
               cost_impact: parseFloat(formData.get("cost_impact") as string),
-              date: new Date().toISOString(),
+              date: selectedRecord?.date || new Date().toISOString(),
             };
             handleSubmit(data);
           }}>
@@ -156,7 +180,7 @@ const LossRecords = () => {
                 <Label htmlFor="item_type">Type</Label>
                 <Select
                   name="item_type"
-                  defaultValue={selectedRecord?.item_type}
+                  value={selectedItemType}
                   onValueChange={setSelectedItemType}
                 >
                   <SelectTrigger>
@@ -172,7 +196,10 @@ const LossRecords = () => {
 
               <div>
                 <Label htmlFor="item_id">Item</Label>
-                <Select name="item_id" defaultValue={selectedRecord?.item_id}>
+                <Select 
+                  name="item_id" 
+                  defaultValue={selectedRecord?.item_id}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select item" />
                   </SelectTrigger>
@@ -199,16 +226,6 @@ const LossRecords = () => {
               </div>
 
               <div>
-                <Label htmlFor="reason">Reason</Label>
-                <Input
-                  id="reason"
-                  name="reason"
-                  defaultValue={selectedRecord?.reason}
-                  required
-                />
-              </div>
-
-              <div>
                 <Label htmlFor="cost_impact">Cost Impact</Label>
                 <Input
                   id="cost_impact"
@@ -219,13 +236,27 @@ const LossRecords = () => {
                   required
                 />
               </div>
+
+              <div>
+                <Label htmlFor="reason">Reason</Label>
+                <Input
+                  id="reason"
+                  name="reason"
+                  defaultValue={selectedRecord?.reason}
+                  required
+                />
+              </div>
             </div>
 
             <DialogFooter className="mt-6">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsDialogOpen(false)}
+                onClick={() => {
+                  setIsDialogOpen(false);
+                  setSelectedRecord(null);
+                  setSelectedItemType("");
+                }}
               >
                 Cancel
               </Button>

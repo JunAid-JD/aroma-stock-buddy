@@ -82,7 +82,7 @@ const Dashboard = () => {
           quantity_produced,
           production_date,
           status,
-          finished_products (
+          finished_products!production_batches_product_id_fkey (
             name
           )
         `)
@@ -150,7 +150,7 @@ const Dashboard = () => {
                   Latest production activities
                 </CardDescription>
               </div>
-              <Button onClick={() => navigate("/production-batches")}>
+              <Button onClick={() => navigate("/production-history")}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Batch
               </Button>
@@ -166,7 +166,7 @@ const Dashboard = () => {
             ) : (
               <div className="text-center py-8">
                 <p className="text-muted-foreground mb-4">No production history available</p>
-                <Button onClick={() => navigate("/production-batches")}>
+                <Button onClick={() => navigate("/production-history")}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Production Batch
                 </Button>
