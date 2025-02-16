@@ -2,12 +2,13 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import RawMaterialForm from "./forms/RawMaterialForm";
+import PackagingForm from "./forms/PackagingForm";
+import FinishedProductForm from "./forms/FinishedProductForm";
+import CommonFields from "./forms/CommonFields";
 
 interface ItemFormDialogProps {
   isOpen: boolean;
@@ -35,7 +36,6 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
     enabled: type === 'finished'
   });
 
-  // Reset form data when item changes
   useEffect(() => {
     setFormData(item || {});
   }, [item]);
@@ -84,162 +84,23 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={formData.name || ''}
-                onChange={(e) => handleChange('name', e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="sku">SKU</Label>
-              <Input
-                id="sku"
-                value={formData.sku || ''}
-                onChange={(e) => handleChange('sku', e.target.value)}
-                required
-              />
-            </div>
+            <CommonFields formData={formData} onChange={handleChange} type={type} />
 
             {type === 'raw' && (
-              <>
-                <div>
-                  <Label htmlFor="type">Type</Label>
-                  <Select
-                    value={formData.type || ''}
-                    onValueChange={(value) => handleChange('type', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="essential_oil">Essential Oil</SelectItem>
-                      <SelectItem value="carrier_oil">Carrier Oil</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="quantity">Quantity in Stock (ml)</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    step="0.01"
-                    value={formData.quantity_in_stock || ''}
-                    onChange={(e) => handleChange('quantity_in_stock', parseFloat(e.target.value))}
-                    required
-                  />
-                </div>
-              </>
+              <RawMaterialForm formData={formData} onChange={handleChange} />
             )}
 
             {type === 'packaging' && (
-              <>
-                <div>
-                  <Label htmlFor="type">Type</Label>
-                  <Select
-                    value={formData.type || ''}
-                    onValueChange={(value) => handleChange('type', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bottle">Bottle</SelectItem>
-                      <SelectItem value="cap">Cap</SelectItem>
-                      <SelectItem value="dropper">Dropper</SelectItem>
-                      <SelectItem value="inner">Inner Box</SelectItem>
-                      <SelectItem value="outer">Outer Box</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="size">Size</Label>
-                  <Input
-                    id="size"
-                    value={formData.size || ''}
-                    onChange={(e) => handleChange('size', e.target.value)}
-                    required
-                  />
-                </div>
-              </>
+              <PackagingForm formData={formData} onChange={handleChange} />
             )}
 
             {type === 'finished' && (
-              <>
-                <div>
-                  <Label htmlFor="type">Type</Label>
-                  <Select
-                    value={formData.type || ''}
-                    onValueChange={(value) => handleChange('type', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="essential_oil">Essential Oil</SelectItem>
-                      <SelectItem value="carrier_oil">Carrier Oil</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="volume_config">Volume Configuration</Label>
-                  <Select
-                    value={formData.volume_config || ''}
-                    onValueChange={(value) => handleChange('volume_config', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select volume configuration" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {configurations?.map((config) => (
-                        <SelectItem key={config.volume_config} value={config.volume_config}>
-                          {config.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+              <FinishedProductForm 
+                formData={formData} 
+                onChange={handleChange}
+                configurations={configurations || []}
+              />
             )}
-
-            <div>
-              <Label htmlFor="quantity">Quantity in Stock</Label>
-              <Input
-                id="quantity"
-                type="number"
-                value={formData.quantity_in_stock || ''}
-                onChange={(e) => handleChange('quantity_in_stock', parseInt(e.target.value))}
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="reorder">Reorder Point</Label>
-              <Input
-                id="reorder"
-                type="number"
-                value={formData.reorder_point || ''}
-                onChange={(e) => handleChange('reorder_point', parseInt(e.target.value))}
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="cost">
-                {type === 'finished' ? 'Unit Price' : 'Unit Cost'}
-              </Label>
-              <Input
-                id="cost"
-                type="number"
-                step="0.01"
-                value={formData[type === 'finished' ? 'unit_price' : 'unit_cost'] || ''}
-                onChange={(e) => handleChange(type === 'finished' ? 'unit_price' : 'unit_cost', parseFloat(e.target.value))}
-                required
-              />
-            </div>
           </div>
 
           <DialogFooter className="mt-6">
