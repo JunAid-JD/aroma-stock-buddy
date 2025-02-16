@@ -20,8 +20,6 @@ export type Database = {
           type: Database["public"]["Enums"]["material_type"]
           unit_price: number
           updated_at: string | null
-          volume: number
-          volume_unit: Database["public"]["Enums"]["volume_unit"] | null
         }
         Insert: {
           created_at?: string | null
@@ -33,8 +31,6 @@ export type Database = {
           type: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
-          volume: number
-          volume_unit?: Database["public"]["Enums"]["volume_unit"] | null
         }
         Update: {
           created_at?: string | null
@@ -46,8 +42,6 @@ export type Database = {
           type?: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
-          volume?: number
-          volume_unit?: Database["public"]["Enums"]["volume_unit"] | null
         }
         Relationships: []
       }
@@ -95,6 +89,7 @@ export type Database = {
           quantity_in_stock: number
           reorder_point: number
           size: string | null
+          sku: string
           type: string
           unit_cost: number
           updated_at: string | null
@@ -106,6 +101,7 @@ export type Database = {
           quantity_in_stock?: number
           reorder_point?: number
           size?: string | null
+          sku?: string
           type: string
           unit_cost?: number
           updated_at?: string | null
@@ -117,6 +113,7 @@ export type Database = {
           quantity_in_stock?: number
           reorder_point?: number
           size?: string | null
+          sku?: string
           type?: string
           unit_cost?: number
           updated_at?: string | null
@@ -171,6 +168,45 @@ export type Database = {
             columns: ["raw_material_id"]
             isOneToOne: false
             referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_batch_items: {
+        Row: {
+          batch_id: string
+          created_at: string | null
+          id: string
+          item_id: string
+          quantity: number
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string | null
+          id?: string
+          item_id: string
+          quantity?: number
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string | null
+          id?: string
+          item_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batch_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batch_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "finished_products"
             referencedColumns: ["id"]
           },
         ]
@@ -272,11 +308,10 @@ export type Database = {
           name: string
           quantity_in_stock: number
           reorder_point: number
+          sku: string
           type: Database["public"]["Enums"]["material_type"]
           unit_cost: number
           updated_at: string | null
-          volume: number
-          volume_unit: Database["public"]["Enums"]["volume_unit"] | null
         }
         Insert: {
           created_at?: string | null
@@ -284,11 +319,10 @@ export type Database = {
           name: string
           quantity_in_stock?: number
           reorder_point?: number
+          sku?: string
           type: Database["public"]["Enums"]["material_type"]
           unit_cost?: number
           updated_at?: string | null
-          volume: number
-          volume_unit?: Database["public"]["Enums"]["volume_unit"] | null
         }
         Update: {
           created_at?: string | null
@@ -296,11 +330,10 @@ export type Database = {
           name?: string
           quantity_in_stock?: number
           reorder_point?: number
+          sku?: string
           type?: Database["public"]["Enums"]["material_type"]
           unit_cost?: number
           updated_at?: string | null
-          volume?: number
-          volume_unit?: Database["public"]["Enums"]["volume_unit"] | null
         }
         Relationships: []
       }
