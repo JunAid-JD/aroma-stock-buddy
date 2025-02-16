@@ -16,10 +16,12 @@ export type Database = {
           name: string
           quantity_in_stock: number
           reorder_point: number
+          required_packaging: Json | null
           sku: string
           type: Database["public"]["Enums"]["material_type"]
           unit_price: number
           updated_at: string | null
+          volume_config: Database["public"]["Enums"]["product_volume_config"]
         }
         Insert: {
           created_at?: string | null
@@ -27,10 +29,12 @@ export type Database = {
           name: string
           quantity_in_stock?: number
           reorder_point?: number
+          required_packaging?: Json | null
           sku: string
           type: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
+          volume_config?: Database["public"]["Enums"]["product_volume_config"]
         }
         Update: {
           created_at?: string | null
@@ -38,10 +42,12 @@ export type Database = {
           name?: string
           quantity_in_stock?: number
           reorder_point?: number
+          required_packaging?: Json | null
           sku?: string
           type?: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
+          volume_config?: Database["public"]["Enums"]["product_volume_config"]
         }
         Relationships: []
       }
@@ -171,6 +177,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      product_configurations: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          required_packaging: Json
+          updated_at: string | null
+          volume_config: Database["public"]["Enums"]["product_volume_config"]
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          required_packaging: Json
+          updated_at?: string | null
+          volume_config: Database["public"]["Enums"]["product_volume_config"]
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          required_packaging?: Json
+          updated_at?: string | null
+          volume_config?: Database["public"]["Enums"]["product_volume_config"]
+        }
+        Relationships: []
       }
       production_batch_items: {
         Row: {
@@ -310,6 +346,7 @@ export type Database = {
           reorder_point: number
           sku: string
           type: Database["public"]["Enums"]["material_type"]
+          unit: string
           unit_cost: number
           updated_at: string | null
         }
@@ -321,6 +358,7 @@ export type Database = {
           reorder_point?: number
           sku?: string
           type: Database["public"]["Enums"]["material_type"]
+          unit?: string
           unit_cost?: number
           updated_at?: string | null
         }
@@ -332,6 +370,7 @@ export type Database = {
           reorder_point?: number
           sku?: string
           type?: Database["public"]["Enums"]["material_type"]
+          unit?: string
           unit_cost?: number
           updated_at?: string | null
         }
@@ -347,6 +386,12 @@ export type Database = {
     Enums: {
       material_type: "essential_oil" | "carrier_oil"
       product_category: "raw_material" | "packaging" | "finished_product"
+      product_volume_config:
+        | "essential_10ml"
+        | "essential_30ml"
+        | "carrier_30ml"
+        | "carrier_70ml"
+        | "carrier_140ml"
       volume_unit: "ml"
     }
     CompositeTypes: {

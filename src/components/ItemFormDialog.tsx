@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ItemFormDialogProps {
   isOpen: boolean;
@@ -19,6 +21,19 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
   const { toast } = useToast();
   const [formData, setFormData] = useState(item || {});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: configurations } = useQuery({
+    queryKey: ["productConfigurations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_configurations")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: type === 'finished'
+  });
 
   // Reset form data when item changes
   useEffect(() => {
@@ -47,7 +62,16 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
   };
 
   const handleChange = (field: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [field]: value }));
+    if (field === 'volume_config' && type === 'finished') {
+      const selectedConfig = configurations?.find(config => config.volume_config === value);
+      setFormData(prev => ({
+        ...prev,
+        [field]: value,
+        required_packaging: selectedConfig?.required_packaging
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   return (
@@ -70,6 +94,16 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
               />
             </div>
 
+            <div>
+              <Label htmlFor="sku">SKU</Label>
+              <Input
+                id="sku"
+                value={formData.sku || ''}
+                onChange={(e) => handleChange('sku', e.target.value)}
+                required
+              />
+            </div>
+
             {type === 'raw' && (
               <>
                 <div>
@@ -88,12 +122,13 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="volume">Volume</Label>
+                  <Label htmlFor="quantity">Quantity in Stock (ml)</Label>
                   <Input
-                    id="volume"
+                    id="quantity"
                     type="number"
-                    value={formData.volume || ''}
-                    onChange={(e) => handleChange('volume', parseInt(e.target.value))}
+                    step="0.01"
+                    value={formData.quantity_in_stock || ''}
+                    onChange={(e) => handleChange('quantity_in_stock', parseFloat(e.target.value))}
                     required
                   />
                 </div>
@@ -115,7 +150,8 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
                       <SelectItem value="bottle">Bottle</SelectItem>
                       <SelectItem value="cap">Cap</SelectItem>
                       <SelectItem value="dropper">Dropper</SelectItem>
-                      <SelectItem value="box">Box</SelectItem>
+                      <SelectItem value="inner">Inner Box</SelectItem>
+                      <SelectItem value="outer">Outer Box</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -125,6 +161,7 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
                     id="size"
                     value={formData.size || ''}
                     onChange={(e) => handleChange('size', e.target.value)}
+                    required
                   />
                 </div>
               </>
@@ -132,15 +169,6 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
 
             {type === 'finished' && (
               <>
-                <div>
-                  <Label htmlFor="sku">SKU</Label>
-                  <Input
-                    id="sku"
-                    value={formData.sku || ''}
-                    onChange={(e) => handleChange('sku', e.target.value)}
-                    required
-                  />
-                </div>
                 <div>
                   <Label htmlFor="type">Type</Label>
                   <Select
@@ -153,6 +181,24 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
                     <SelectContent>
                       <SelectItem value="essential_oil">Essential Oil</SelectItem>
                       <SelectItem value="carrier_oil">Carrier Oil</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="volume_config">Volume Configuration</Label>
+                  <Select
+                    value={formData.volume_config || ''}
+                    onValueChange={(value) => handleChange('volume_config', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select volume configuration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {configurations?.map((config) => (
+                        <SelectItem key={config.volume_config} value={config.volume_config}>
+                          {config.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
