@@ -53,7 +53,7 @@ export type Database = {
       }
       loss_records: {
         Row: {
-          cost_impact: number
+          cost_impact: number | null
           created_at: string | null
           date: string | null
           id: string
@@ -64,7 +64,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          cost_impact: number
+          cost_impact?: number | null
           created_at?: string | null
           date?: string | null
           id?: string
@@ -75,7 +75,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          cost_impact?: number
+          cost_impact?: number | null
           created_at?: string | null
           date?: string | null
           id?: string
@@ -255,7 +255,6 @@ export type Database = {
           notes: string | null
           product_id: string
           production_date: string | null
-          quantity_produced: number
           status: string
           updated_at: string | null
         }
@@ -266,7 +265,6 @@ export type Database = {
           notes?: string | null
           product_id: string
           production_date?: string | null
-          quantity_produced: number
           status?: string
           updated_at?: string | null
         }
@@ -277,7 +275,6 @@ export type Database = {
           notes?: string | null
           product_id?: string
           production_date?: string | null
-          quantity_produced?: number
           status?: string
           updated_at?: string | null
         }
@@ -349,6 +346,8 @@ export type Database = {
           unit: string
           unit_cost: number
           updated_at: string | null
+          volume: number
+          volume_unit: string
         }
         Insert: {
           created_at?: string | null
@@ -361,6 +360,8 @@ export type Database = {
           unit?: string
           unit_cost?: number
           updated_at?: string | null
+          volume?: number
+          volume_unit?: string
         }
         Update: {
           created_at?: string | null
@@ -373,6 +374,8 @@ export type Database = {
           unit?: string
           unit_cost?: number
           updated_at?: string | null
+          volume?: number
+          volume_unit?: string
         }
         Relationships: []
       }

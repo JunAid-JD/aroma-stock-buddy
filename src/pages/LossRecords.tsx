@@ -66,7 +66,8 @@ const LossRecords = () => {
 
         return {
           ...record,
-          item_name: itemName
+          item_name: itemName,
+          cost_impact: record.cost_impact ? `$${record.cost_impact.toFixed(2)}` : 'Calculating...'
         };
       });
 
@@ -91,18 +92,28 @@ const LossRecords = () => {
     },
   });
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const data = {
+      item_id: formData.get("item_id") as string,
+      item_type: formData.get("item_type") as "raw_material" | "packaging" | "finished_product",
+      quantity: parseFloat(formData.get("quantity") as string),
+      reason: formData.get("reason") as string,
+      date: new Date().toISOString(),
+    };
+
     try {
       if (selectedRecord) {
         const { error } = await supabase
           .from("loss_records")
-          .update(formData)
+          .update(data)
           .eq("id", selectedRecord.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("loss_records")
-          .insert(formData);
+          .insert(data);
         if (error) throw error;
       }
       await queryClient.invalidateQueries({ queryKey: ["lossRecords"] });
@@ -162,19 +173,7 @@ const LossRecords = () => {
               {selectedRecord ? "Edit" : "Add"} Loss Record
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            const data = {
-              item_id: formData.get("item_id") as string,
-              item_type: formData.get("item_type") as "raw_material" | "packaging" | "finished_product",
-              quantity: parseFloat(formData.get("quantity") as string),
-              reason: formData.get("reason") as string,
-              cost_impact: parseFloat(formData.get("cost_impact") as string),
-              date: selectedRecord?.date || new Date().toISOString(),
-            };
-            handleSubmit(data);
-          }}>
+          <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="item_type">Type</Label>
@@ -221,18 +220,6 @@ const LossRecords = () => {
                   type="number"
                   step="0.01"
                   defaultValue={selectedRecord?.quantity}
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="cost_impact">Cost Impact</Label>
-                <Input
-                  id="cost_impact"
-                  name="cost_impact"
-                  type="number"
-                  step="0.01"
-                  defaultValue={selectedRecord?.cost_impact}
                   required
                 />
               </div>

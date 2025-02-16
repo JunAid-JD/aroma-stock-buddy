@@ -74,10 +74,12 @@ const ProductionHistory = () => {
       batch_number: formData.get("batch_number") as string,
       status: formData.get("status") as string,
       notes: formData.get("notes") as string,
+      product_id: batchItems[0].product_id, // Use first item as main product
     };
 
     try {
       if (selectedBatch) {
+        // Update existing batch
         const { error: batchError } = await supabase
           .from("production_batches")
           .update(data)
@@ -85,24 +87,38 @@ const ProductionHistory = () => {
         
         if (batchError) throw batchError;
 
+        // Delete existing items
         const { error: deleteError } = await supabase
           .from("production_batch_items")
           .delete()
           .eq("batch_id", selectedBatch.id);
 
         if (deleteError) throw deleteError;
+
+        // Insert new items
+        const { error: itemsError } = await supabase
+          .from("production_batch_items")
+          .insert(
+            batchItems.map(item => ({
+              batch_id: selectedBatch.id,
+              item_id: item.product_id,
+              quantity: item.quantity,
+            }))
+          );
+
+        if (itemsError) throw itemsError;
+
       } else {
+        // Create new batch
         const { data: newBatch, error: batchError } = await supabase
           .from("production_batches")
-          .insert({
-            ...data,
-            product_id: batchItems[0].product_id,
-          })
+          .insert(data)
           .select()
           .single();
 
         if (batchError) throw batchError;
 
+        // Insert batch items
         const { error: itemsError } = await supabase
           .from("production_batch_items")
           .insert(
@@ -123,6 +139,7 @@ const ProductionHistory = () => {
       });
       handleClose();
     } catch (error) {
+      console.error('Error:', error);
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",
