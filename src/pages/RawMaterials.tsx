@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -5,22 +6,37 @@ import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import ItemFormDialog from "@/components/ItemFormDialog";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const columns = [
+  { key: "sku", label: "SKU" },
   { key: "name", label: "Name" },
   { key: "type", label: "Type" },
   { key: "volume", label: "Volume" },
   { key: "volume_unit", label: "Unit" },
   { key: "quantity_in_stock", label: "Stock" },
-  { key: "reorder_point", label: "Reorder Point" },
   { key: "unit_cost", label: "Unit Cost" },
+  { key: "total_value", label: "Total Value" },
+  { key: "reorder_point", label: "Reorder Point" },
   { key: "updated_at", label: "Last Updated", isDate: true },
 ];
 
 const RawMaterials = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: rawMaterials, isLoading } = useQuery({
     queryKey: ["rawMaterials"],
@@ -31,24 +47,71 @@ const RawMaterials = () => {
         .order("name");
       
       if (error) throw error;
-      return data;
+      
+      // Format total value as currency
+      return data.map(item => ({
+        ...item,
+        total_value: item.total_value ? `$${item.total_value.toFixed(2)}` : '$0.00',
+        unit_cost: `$${item.unit_cost.toFixed(2)}`
+      }));
     },
   });
 
   const handleSubmit = async (formData: any) => {
-    if (selectedItem) {
-      const { error } = await supabase
-        .from("raw_materials")
-        .update(formData)
-        .eq("id", selectedItem.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from("raw_materials")
-        .insert(formData);
-      if (error) throw error;
+    try {
+      if (selectedItem) {
+        const { error } = await supabase
+          .from("raw_materials")
+          .update(formData)
+          .eq("id", selectedItem.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("raw_materials")
+          .insert(formData);
+        if (error) throw error;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+      toast({
+        title: "Success",
+        description: `Item ${selectedItem ? "updated" : "created"} successfully.`,
+      });
+      setIsDialogOpen(false);
+      setSelectedItem(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     }
-    await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+  };
+
+  const handleDelete = async () => {
+    if (!selectedItem) return;
+
+    try {
+      const { error } = await supabase
+        .from("raw_materials")
+        .delete()
+        .eq("id", selectedItem.id);
+      
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+      toast({
+        title: "Success",
+        description: "Item deleted successfully.",
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedItem(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete item.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAdd = () => {
@@ -59,6 +122,11 @@ const RawMaterials = () => {
   const handleEdit = (item: any) => {
     setSelectedItem(item);
     setIsDialogOpen(true);
+  };
+
+  const handleDeleteClick = (item: any) => {
+    setSelectedItem(item);
+    setIsDeleteDialogOpen(true);
   };
 
   return (
@@ -80,14 +148,37 @@ const RawMaterials = () => {
         data={rawMaterials || []}
         isLoading={isLoading}
         onEdit={handleEdit}
+        onDelete={handleDeleteClick}
       />
       <ItemFormDialog
         isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
+        onClose={() => {
+          setIsDialogOpen(false);
+          setSelectedItem(null);
+        }}
         onSubmit={handleSubmit}
         item={selectedItem}
         type="raw"
       />
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the raw material
+              and all associated records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

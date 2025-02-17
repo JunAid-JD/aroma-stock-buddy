@@ -11,7 +11,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Edit, Search } from "lucide-react";
+import { Edit, Search, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
 interface DataTableProps {
@@ -23,9 +23,10 @@ interface DataTableProps {
   data: any[];
   isLoading?: boolean;
   onEdit?: (item: any) => void;
+  onDelete?: (item: any) => void;
 }
 
-const DataTable = ({ columns, data, isLoading = false, onEdit }: DataTableProps) => {
+const DataTable = ({ columns, data, isLoading = false, onEdit, onDelete }: DataTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   if (isLoading) {
@@ -40,7 +41,7 @@ const DataTable = ({ columns, data, isLoading = false, onEdit }: DataTableProps)
 
   const formatValue = (value: any, isDate: boolean = false) => {
     if (isDate && value) {
-      return format(new Date(value), "PPpp"); // Format: "Apr 29, 2024, 12:00 PM"
+      return format(new Date(value), "PPpp");
     }
     return value;
   };
@@ -64,7 +65,7 @@ const DataTable = ({ columns, data, isLoading = false, onEdit }: DataTableProps)
                 {columns.map((column) => (
                   <TableHead key={column.key}>{column.label}</TableHead>
                 ))}
-                {onEdit && <TableHead>Actions</TableHead>}
+                {(onEdit || onDelete) && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -75,15 +76,29 @@ const DataTable = ({ columns, data, isLoading = false, onEdit }: DataTableProps)
                       {formatValue(row[column.key], column.isDate)}
                     </TableCell>
                   ))}
-                  {onEdit && (
+                  {(onEdit || onDelete) && (
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onEdit(row)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        {onEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEdit(row)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {onDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onDelete(row)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>

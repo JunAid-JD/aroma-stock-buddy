@@ -18,6 +18,7 @@ export type Database = {
           reorder_point: number
           required_packaging: Json | null
           sku: string
+          total_value: number | null
           type: Database["public"]["Enums"]["material_type"]
           unit_price: number
           updated_at: string | null
@@ -31,6 +32,7 @@ export type Database = {
           reorder_point?: number
           required_packaging?: Json | null
           sku: string
+          total_value?: number | null
           type: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
@@ -44,6 +46,7 @@ export type Database = {
           reorder_point?: number
           required_packaging?: Json | null
           sku?: string
+          total_value?: number | null
           type?: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
@@ -96,6 +99,7 @@ export type Database = {
           reorder_point: number
           size: string | null
           sku: string
+          total_value: number | null
           type: string
           unit_cost: number
           updated_at: string | null
@@ -108,6 +112,7 @@ export type Database = {
           reorder_point?: number
           size?: string | null
           sku?: string
+          total_value?: number | null
           type: string
           unit_cost?: number
           updated_at?: string | null
@@ -120,6 +125,7 @@ export type Database = {
           reorder_point?: number
           size?: string | null
           sku?: string
+          total_value?: number | null
           type?: string
           unit_cost?: number
           updated_at?: string | null
@@ -342,6 +348,7 @@ export type Database = {
           quantity_in_stock: number
           reorder_point: number
           sku: string
+          total_value: number | null
           type: Database["public"]["Enums"]["material_type"]
           unit: string
           unit_cost: number
@@ -356,6 +363,7 @@ export type Database = {
           quantity_in_stock?: number
           reorder_point?: number
           sku?: string
+          total_value?: number | null
           type: Database["public"]["Enums"]["material_type"]
           unit?: string
           unit_cost?: number
@@ -370,6 +378,7 @@ export type Database = {
           quantity_in_stock?: number
           reorder_point?: number
           sku?: string
+          total_value?: number | null
           type?: Database["public"]["Enums"]["material_type"]
           unit?: string
           unit_cost?: number
