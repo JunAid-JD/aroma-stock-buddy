@@ -97,7 +97,7 @@ export type Database = {
           name: string
           quantity_in_stock: number
           reorder_point: number
-          size: string | null
+          size: string
           sku: string
           total_value: number | null
           type: string
@@ -110,7 +110,7 @@ export type Database = {
           name: string
           quantity_in_stock?: number
           reorder_point?: number
-          size?: string | null
+          size: string
           sku?: string
           total_value?: number | null
           type: string
@@ -123,7 +123,7 @@ export type Database = {
           name?: string
           quantity_in_stock?: number
           reorder_point?: number
-          size?: string | null
+          size?: string
           sku?: string
           total_value?: number | null
           type?: string
@@ -353,8 +353,6 @@ export type Database = {
           unit: string
           unit_cost: number
           updated_at: string | null
-          volume: number
-          volume_unit: string
         }
         Insert: {
           created_at?: string | null
@@ -368,8 +366,6 @@ export type Database = {
           unit?: string
           unit_cost?: number
           updated_at?: string | null
-          volume?: number
-          volume_unit?: string
         }
         Update: {
           created_at?: string | null
@@ -383,8 +379,6 @@ export type Database = {
           unit?: string
           unit_cost?: number
           updated_at?: string | null
-          volume?: number
-          volume_unit?: string
         }
         Relationships: []
       }
