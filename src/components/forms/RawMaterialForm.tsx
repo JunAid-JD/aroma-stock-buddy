@@ -36,18 +36,18 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         </Select>
       </div>
       <div>
-        <Label htmlFor="volume">Volume</Label>
+        <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
         <Input
-          id="volume"
+          id="quantity_in_stock"
           type="number"
           step="0.01"
-          value={formData.volume || ''}
-          onChange={(e) => onChange('volume', parseFloat(e.target.value))}
+          value={formData.quantity_in_stock || ''}
+          onChange={(e) => onChange('quantity_in_stock', parseFloat(e.target.value))}
           required
         />
       </div>
       <div>
-        <Label htmlFor="volume_unit">Volume Unit</Label>
+        <Label htmlFor="volume_unit">Unit</Label>
         <Select
           value={formData.volume_unit || 'ml'}
           onValueChange={(value) => onChange('volume_unit', value)}
@@ -58,6 +58,9 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
           <SelectContent>
             <SelectItem value="ml">ml</SelectItem>
             <SelectItem value="l">L</SelectItem>
+            <SelectItem value="kg">kg</SelectItem>
+            <SelectItem value="g">g</SelectItem>
+            <SelectItem value="units">units</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -69,17 +72,6 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
           step="0.01"
           value={formData.unit_cost || ''}
           onChange={(e) => onChange('unit_cost', parseFloat(e.target.value))}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="quantity">Quantity in Stock</Label>
-        <Input
-          id="quantity"
-          type="number"
-          step="0.01"
-          value={formData.quantity_in_stock || ''}
-          onChange={(e) => onChange('quantity_in_stock', parseFloat(e.target.value))}
           required
         />
       </div>
