@@ -3,24 +3,60 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, ShoppingBag, Box, AlertTriangle } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { format } from "date-fns";
 
 const Dashboard = () => {
   const { data: stats } = useQuery({
     queryKey: ["dashboardStats"],
     queryFn: async () => {
-      const [rawMaterials, packagingItems, finishedProducts, alerts] = await Promise.all([
+      const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
         supabase.from("raw_materials").select("id"),
         supabase.from("packaging_items").select("id"),
         supabase.from("finished_products").select("id"),
-        supabase.rpc("get_low_stock_items")
       ]);
 
       return {
         rawMaterialsCount: rawMaterials.data?.length || 0,
         packagingItemsCount: packagingItems.data?.length || 0,
         finishedProductsCount: finishedProducts.data?.length || 0,
-        lowStockCount: alerts.data?.length || 0
+        lowStockCount: 0 // This will be implemented later with a proper function
       };
+    }
+  });
+
+  const { data: recentBatches } = useQuery({
+    queryKey: ["recentBatches"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_batches")
+        .select(`
+          *,
+          production_batch_items (
+            quantity,
+            finished_products (
+              name
+            )
+          )
+        `)
+        .order('production_date', { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+
+      return data.map(batch => ({
+        ...batch,
+        products: batch.production_batch_items
+          ?.map(item => `${item.finished_products.name} (${item.quantity})`)
+          .join(", ") || "No items"
+      }));
     }
   });
 
@@ -78,6 +114,37 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Production Batches</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Latest production batches and their status
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Batch #</TableHead>
+                <TableHead>Products</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recentBatches?.map((batch) => (
+                <TableRow key={batch.id}>
+                  <TableCell>{batch.batch_number}</TableCell>
+                  <TableCell>{batch.products}</TableCell>
+                  <TableCell>{format(new Date(batch.production_date), "PPp")}</TableCell>
+                  <TableCell>{batch.status}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -191,12 +191,12 @@ const ProductionHistory = () => {
     if (!selectedBatch) return;
 
     try {
-      // First delete related batch items
+      // First delete batch items
       const { error: itemsError } = await supabase
         .from("production_batch_items")
         .delete()
         .eq("batch_id", selectedBatch.id);
-      
+
       if (itemsError) throw itemsError;
 
       // Then delete the batch
@@ -204,7 +204,7 @@ const ProductionHistory = () => {
         .from("production_batches")
         .delete()
         .eq("id", selectedBatch.id);
-      
+
       if (batchError) throw batchError;
 
       await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
@@ -247,6 +247,7 @@ const ProductionHistory = () => {
         data={productionBatches || []}
         isLoading={isLoading}
         onEdit={handleEdit}
+        onDelete={handleDeleteClick}
       />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
