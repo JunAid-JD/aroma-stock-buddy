@@ -1,130 +1,83 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { TableHead, TableRow, TableHeader, TableCell, TableBody, Table } from "@/components/ui/table";
-import { format } from "date-fns";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Package, ShoppingBag, Box, AlertTriangle } from "lucide-react";
 
 const Dashboard = () => {
   const { data: stats } = useQuery({
     queryKey: ["dashboardStats"],
     queryFn: async () => {
-      const [rawMaterials, packaging, finished, batches] = await Promise.all([
-        supabase.from("raw_materials").select("quantity_in_stock, unit_cost"),
-        supabase.from("packaging_items").select("quantity_in_stock, unit_cost"),
-        supabase.from("finished_products").select("quantity_in_stock, unit_price"),
-        supabase.from("production_batches").select(`
-          batch_number,
-          status,
-          production_date,
-          production_batch_items (
-            quantity,
-            finished_products (
-              name
-            )
-          )
-        `).order('production_date', { ascending: false }).limit(5)
+      const [rawMaterials, packagingItems, finishedProducts, alerts] = await Promise.all([
+        supabase.from("raw_materials").select("id"),
+        supabase.from("packaging_items").select("id"),
+        supabase.from("finished_products").select("id"),
+        supabase.rpc("get_low_stock_items")
       ]);
 
-      const rawValue = (rawMaterials.data || []).reduce((sum, item) => 
-        sum + (item.quantity_in_stock * item.unit_cost), 0);
-      
-      const packagingValue = (packaging.data || []).reduce((sum, item) => 
-        sum + (item.quantity_in_stock * item.unit_cost), 0);
-      
-      const finishedValue = (finished.data || []).reduce((sum, item) => 
-        sum + (item.quantity_in_stock * item.unit_price), 0);
-
       return {
-        rawValue,
-        packagingValue,
-        finishedValue,
-        totalValue: rawValue + packagingValue + finishedValue,
-        recentBatches: batches.data || []
+        rawMaterialsCount: rawMaterials.data?.length || 0,
+        packagingItemsCount: packagingItems.data?.length || 0,
+        finishedProductsCount: finishedProducts.data?.length || 0,
+        lowStockCount: alerts.data?.length || 0
       };
-    },
+    }
   });
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-      
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <p className="text-muted-foreground">
+          Welcome to your inventory management system
+        </p>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Raw Materials Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Raw Materials</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats?.rawValue.toFixed(2) || '0.00'}</div>
+            <div className="text-2xl font-bold">{stats?.rawMaterialsCount || 0}</div>
+            <p className="text-xs text-muted-foreground">Total SKUs in stock</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Packaging Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Packaging Items</CardTitle>
+            <Box className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats?.packagingValue.toFixed(2) || '0.00'}</div>
+            <div className="text-2xl font-bold">{stats?.packagingItemsCount || 0}</div>
+            <p className="text-xs text-muted-foreground">Available items</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Finished Goods Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Finished Products</CardTitle>
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats?.finishedValue.toFixed(2) || '0.00'}</div>
+            <div className="text-2xl font-bold">{stats?.finishedProductsCount || 0}</div>
+            <p className="text-xs text-muted-foreground">Ready for shipment</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats?.totalValue.toFixed(2) || '0.00'}</div>
+            <div className="text-2xl font-bold">{stats?.lowStockCount || 0}</div>
+            <p className="text-xs text-muted-foreground">Items need attention</p>
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Production Batches</CardTitle>
-          <CardDescription>Latest production batches and their status</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Batch #</TableHead>
-                <TableHead>Products</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {stats?.recentBatches.map((batch) => (
-                <TableRow key={batch.batch_number}>
-                  <TableCell>{batch.batch_number}</TableCell>
-                  <TableCell>
-                    {batch.production_batch_items?.map((item: any) => 
-                      `${item.finished_products.name} (${item.quantity})`
-                    ).join(", ")}
-                  </TableCell>
-                  <TableCell>{format(new Date(batch.production_date), "PPp")}</TableCell>
-                  <TableCell className="capitalize">{batch.status}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   );
 };

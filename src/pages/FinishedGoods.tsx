@@ -88,6 +88,15 @@ const FinishedGoods = () => {
     if (!selectedItem) return;
 
     try {
+      // First, delete related production batch items
+      const { error: batchItemsError } = await supabase
+        .from("production_batch_items")
+        .delete()
+        .eq("item_id", selectedItem.id);
+      
+      if (batchItemsError) throw batchItemsError;
+
+      // Then delete the product
       const { error } = await supabase
         .from("finished_products")
         .delete()

@@ -24,8 +24,8 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
             <SelectItem value="bottle">Bottle</SelectItem>
             <SelectItem value="cap">Cap</SelectItem>
             <SelectItem value="dropper">Dropper</SelectItem>
-            <SelectItem value="inner">Inner Box</SelectItem>
-            <SelectItem value="outer">Outer Box</SelectItem>
+            <SelectItem value="label">Label</SelectItem>
+            <SelectItem value="box">Box</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -52,7 +52,6 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
         <Input
           id="quantity_in_stock"
           type="number"
-          step="1"
           value={formData.quantity_in_stock || ''}
           onChange={(e) => onChange('quantity_in_stock', parseInt(e.target.value))}
           required
@@ -74,7 +73,6 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
         <Input
           id="reorder_point"
           type="number"
-          step="1"
           value={formData.reorder_point || ''}
           onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}
           required

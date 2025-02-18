@@ -12,15 +12,6 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
   return (
     <>
       <div>
-        <Label htmlFor="sku">SKU</Label>
-        <Input
-          id="sku"
-          value={formData.sku || ''}
-          onChange={(e) => onChange('sku', e.target.value)}
-          placeholder="SKU will be auto-generated if left empty"
-        />
-      </div>
-      <div>
         <Label htmlFor="type">Type</Label>
         <Select
           value={formData.type || ''}
