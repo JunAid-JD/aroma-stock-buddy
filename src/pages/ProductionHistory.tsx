@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +7,7 @@ import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import BatchForm from "@/components/production/BatchForm";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 
 const columns = [
   { key: "batch_number", label: "Batch #" },
@@ -26,6 +26,7 @@ const ProductionHistory = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
   const [batchItems, setBatchItems] = useState<BatchItem[]>([{ product_id: "", quantity: 0 }]);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -186,6 +187,47 @@ const ProductionHistory = () => {
     setBatchItems(newItems);
   };
 
+  const handleDelete = async () => {
+    if (!selectedBatch) return;
+
+    try {
+      // First delete related batch items
+      const { error: itemsError } = await supabase
+        .from("production_batch_items")
+        .delete()
+        .eq("batch_id", selectedBatch.id);
+      
+      if (itemsError) throw itemsError;
+
+      // Then delete the batch
+      const { error: batchError } = await supabase
+        .from("production_batches")
+        .delete()
+        .eq("id", selectedBatch.id);
+      
+      if (batchError) throw batchError;
+
+      await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
+      toast({
+        title: "Success",
+        description: "Production batch deleted successfully.",
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedBatch(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete batch.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteClick = (batch: any) => {
+    setSelectedBatch(batch);
+    setIsDeleteDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -226,6 +268,26 @@ const ProductionHistory = () => {
           />
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the production batch
+              and all associated records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

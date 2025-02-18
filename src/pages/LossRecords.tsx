@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +22,7 @@ const columns = [
 const LossRecords = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [selectedItemType, setSelectedItemType] = useState<string>(selectedRecord?.item_type || "");
@@ -37,7 +37,6 @@ const LossRecords = () => {
       
       if (error) throw error;
 
-      // Fetch item names separately
       const itemPromises = records.map(async (record) => {
         let itemName = 'Unknown Item';
         
@@ -75,18 +74,53 @@ const LossRecords = () => {
     },
   });
 
+  const handleDelete = async () => {
+    if (!selectedRecord) return;
+
+    try {
+      const { error } = await supabase
+        .from("loss_records")
+        .delete()
+        .eq("id", selectedRecord.id);
+      
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["lossRecords"] });
+      toast({
+        title: "Success",
+        description: "Record deleted successfully.",
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedRecord(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete record.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteClick = (record: any) => {
+    setSelectedRecord(record);
+    setIsDeleteDialogOpen(true);
+  };
+
   const { data: items } = useQuery({
     queryKey: ["allItems"],
     queryFn: async () => {
       const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
         supabase.from("raw_materials").select("id, name"),
-        supabase.from("packaging_items").select("id, name"),
+        supabase.from("packaging_items").select("id, name, type, size"),
         supabase.from("finished_products").select("id, name"),
       ]);
 
       return {
         raw_material: rawMaterials.data || [],
-        packaging: packagingItems.data || [],
+        packaging: packagingItems.data?.map(item => ({
+          ...item,
+          name: `${item.name} (${item.type} - ${item.size})`
+        })) || [],
         finished_product: finishedProducts.data || [],
       };
     },
@@ -252,6 +286,29 @@ const LossRecords = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Loss Record</DialogTitle>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setSelectedRecord(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

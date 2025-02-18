@@ -36,7 +36,7 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         </Select>
       </div>
       <div>
-        <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
+        <Label htmlFor="quantity_in_stock">Quantity in Stock (ml)</Label>
         <Input
           id="quantity_in_stock"
           type="number"
@@ -47,25 +47,7 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         />
       </div>
       <div>
-        <Label htmlFor="volume_unit">Unit</Label>
-        <Select
-          value={formData.volume_unit || 'ml'}
-          onValueChange={(value) => onChange('volume_unit', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select unit" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ml">ml</SelectItem>
-            <SelectItem value="l">L</SelectItem>
-            <SelectItem value="kg">kg</SelectItem>
-            <SelectItem value="g">g</SelectItem>
-            <SelectItem value="units">units</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label htmlFor="unit_cost">Unit Cost</Label>
+        <Label htmlFor="unit_cost">Unit Cost ($)</Label>
         <Input
           id="unit_cost"
           type="number"

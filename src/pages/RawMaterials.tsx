@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,9 +21,7 @@ const columns = [
   { key: "sku", label: "SKU" },
   { key: "name", label: "Name" },
   { key: "type", label: "Type" },
-  { key: "volume", label: "Volume" },
-  { key: "volume_unit", label: "Unit" },
-  { key: "quantity_in_stock", label: "Stock" },
+  { key: "quantity_in_stock", label: "Stock (ml)" },
   { key: "unit_cost", label: "Unit Cost" },
   { key: "total_value", label: "Total Value" },
   { key: "reorder_point", label: "Reorder Point" },
