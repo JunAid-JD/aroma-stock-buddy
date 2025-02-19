@@ -18,16 +18,25 @@ const Dashboard = () => {
     queryKey: ["dashboardStats"],
     queryFn: async () => {
       const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
-        supabase.from("raw_materials").select("id"),
-        supabase.from("packaging_items").select("id"),
-        supabase.from("finished_products").select("id"),
+        supabase
+          .from("raw_materials")
+          .select("total_value"),
+        supabase
+          .from("packaging_items")
+          .select("total_value"),
+        supabase
+          .from("finished_products")
+          .select("total_value")
       ]);
 
+      const calculateTotal = (data: any[]) => 
+        data?.reduce((acc, item) => acc + (item.total_value || 0), 0) || 0;
+
       return {
-        rawMaterialsCount: rawMaterials.data?.length || 0,
-        packagingItemsCount: packagingItems.data?.length || 0,
-        finishedProductsCount: finishedProducts.data?.length || 0,
-        lowStockCount: 0 // This will be implemented later with a proper function
+        rawMaterialsValue: calculateTotal(rawMaterials.data),
+        packagingItemsValue: calculateTotal(packagingItems.data),
+        finishedProductsValue: calculateTotal(finishedProducts.data),
+        lowStockCount: 0 // This will be implemented later
       };
     }
   });
@@ -60,6 +69,9 @@ const Dashboard = () => {
     }
   });
 
+  const formatCurrency = (value: number) => 
+    `Rs. ${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+
   return (
     <div className="space-y-6">
       <div>
@@ -72,34 +84,34 @@ const Dashboard = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Raw Materials</CardTitle>
+            <CardTitle className="text-sm font-medium">Raw Materials Value</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.rawMaterialsCount || 0}</div>
-            <p className="text-xs text-muted-foreground">Total SKUs in stock</p>
+            <div className="text-2xl font-bold">{formatCurrency(stats?.rawMaterialsValue || 0)}</div>
+            <p className="text-xs text-muted-foreground">Total value in stock</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Packaging Items</CardTitle>
+            <CardTitle className="text-sm font-medium">Packaging Items Value</CardTitle>
             <Box className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.packagingItemsCount || 0}</div>
-            <p className="text-xs text-muted-foreground">Available items</p>
+            <div className="text-2xl font-bold">{formatCurrency(stats?.packagingItemsValue || 0)}</div>
+            <p className="text-xs text-muted-foreground">Total value in stock</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Finished Products</CardTitle>
+            <CardTitle className="text-sm font-medium">Finished Products Value</CardTitle>
             <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.finishedProductsCount || 0}</div>
-            <p className="text-xs text-muted-foreground">Ready for shipment</p>
+            <div className="text-2xl font-bold">{formatCurrency(stats?.finishedProductsValue || 0)}</div>
+            <p className="text-xs text-muted-foreground">Total value in stock</p>
           </CardContent>
         </Card>
 

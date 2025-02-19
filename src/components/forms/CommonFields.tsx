@@ -6,23 +6,35 @@ interface CommonFieldsProps {
   formData: any;
   onChange: (field: string, value: any) => void;
   excludeFields?: string[];
+  formType?: 'raw' | 'packaging' | 'finished';
 }
 
-const CommonFields = ({ formData, onChange, excludeFields = [] }: CommonFieldsProps) => {
+const CommonFields = ({ formData, onChange, excludeFields = [], formType }: CommonFieldsProps) => {
   const fields = [
+    {
+      id: "name",
+      label: "Name",
+      type: "text"
+    },
+    {
+      id: "sku",
+      label: "SKU",
+      type: "text",
+      readOnly: true
+    },
     {
       id: "quantity_in_stock",
       label: "Quantity in Stock",
       type: "number",
       step: "0.01",
-      unit: "ml"
+      unit: formType === 'raw' ? "ml" : ""
     },
     {
       id: "unit_cost",
       label: "Unit Cost",
       type: "number",
       step: "0.01",
-      prefix: "$"
+      prefix: "Rs."
     },
     {
       id: "reorder_point",
@@ -49,6 +61,7 @@ const CommonFields = ({ formData, onChange, excludeFields = [] }: CommonFieldsPr
               const value = field.type === 'number' ? parseFloat(e.target.value) : e.target.value;
               onChange(field.id, value);
             }}
+            readOnly={field.readOnly}
             required
           />
         </div>

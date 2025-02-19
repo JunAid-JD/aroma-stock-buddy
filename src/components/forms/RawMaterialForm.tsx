@@ -11,6 +11,7 @@ interface RawMaterialFormProps {
 const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
   return (
     <>
+      <CommonFields formData={formData} onChange={onChange} formType="raw" />
       <div>
         <Label htmlFor="type">Type</Label>
         <Select
@@ -26,7 +27,6 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
           </SelectContent>
         </Select>
       </div>
-      <CommonFields formData={formData} onChange={onChange} />
     </>
   );
 };
