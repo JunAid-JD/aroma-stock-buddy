@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,11 +31,15 @@ const Dashboard = () => {
       const calculateTotal = (data: any[]) => 
         data?.reduce((acc, item) => acc + (item.total_value || 0), 0) || 0;
 
+      const rawValue = calculateTotal(rawMaterials.data);
+      const packagingValue = calculateTotal(packagingItems.data);
+      const finishedValue = calculateTotal(finishedProducts.data);
+
       return {
-        rawMaterialsValue: calculateTotal(rawMaterials.data),
-        packagingItemsValue: calculateTotal(packagingItems.data),
-        finishedProductsValue: calculateTotal(finishedProducts.data),
-        lowStockCount: 0 // This will be implemented later
+        rawMaterialsValue: rawValue,
+        packagingItemsValue: packagingValue,
+        finishedProductsValue: finishedValue,
+        totalInventoryValue: rawValue + packagingValue + finishedValue
       };
     }
   });
@@ -95,7 +98,7 @@ const Dashboard = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Packaging Items Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Packaging Value</CardTitle>
             <Box className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -106,7 +109,7 @@ const Dashboard = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Finished Products Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Finished Goods Value</CardTitle>
             <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -117,12 +120,12 @@ const Dashboard = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.lowStockCount || 0}</div>
-            <p className="text-xs text-muted-foreground">Items need attention</p>
+            <div className="text-2xl font-bold">{formatCurrency(stats?.totalInventoryValue || 0)}</div>
+            <p className="text-xs text-muted-foreground">Combined inventory value</p>
           </CardContent>
         </Card>
       </div>
