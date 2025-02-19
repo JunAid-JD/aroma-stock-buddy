@@ -1,6 +1,6 @@
 
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface FinishedProductFormProps {
@@ -11,7 +11,25 @@ interface FinishedProductFormProps {
 
 const FinishedProductForm = ({ formData, onChange, configurations }: FinishedProductFormProps) => {
   return (
-    <>
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="name">Name</Label>
+        <Input
+          id="name"
+          value={formData.name || ''}
+          onChange={(e) => onChange('name', e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="sku">SKU</Label>
+        <Input
+          id="sku"
+          value={formData.sku || ''}
+          readOnly
+          className="bg-gray-100"
+        />
+      </div>
       <div>
         <Label htmlFor="type">Type</Label>
         <Select
@@ -28,6 +46,26 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
         </Select>
       </div>
       <div>
+        <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
+        <Input
+          id="quantity_in_stock"
+          type="number"
+          value={formData.quantity_in_stock || ''}
+          onChange={(e) => onChange('quantity_in_stock', parseInt(e.target.value))}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="reorder_point">Reorder Point</Label>
+        <Input
+          id="reorder_point"
+          type="number"
+          value={formData.reorder_point || ''}
+          onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}
+          required
+        />
+      </div>
+      <div>
         <Label htmlFor="volume_config">Volume Configuration</Label>
         <Select
           value={formData.volume_config || ''}
@@ -38,14 +76,14 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
           </SelectTrigger>
           <SelectContent>
             {configurations?.map((config) => (
-              <SelectItem key={config.volume_config} value={config.volume_config}>
+              <SelectItem key={config.id} value={config.volume_config}>
                 {config.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
-    </>
+    </div>
   );
 };
 

@@ -137,14 +137,12 @@ const PurchaseRecords = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async () => {
-    if (!selectedRecord) return;
-
+  const handleDelete = async (record: any) => {
     try {
       const { error } = await supabase
         .from("purchase_records")
         .delete()
-        .eq("id", selectedRecord.id);
+        .eq("id", record.id);
       
       if (error) throw error;
 
@@ -153,8 +151,6 @@ const PurchaseRecords = () => {
         title: "Success",
         description: "Record deleted successfully.",
       });
-      setIsDeleteDialogOpen(false);
-      setSelectedRecord(null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -188,6 +184,7 @@ const PurchaseRecords = () => {
         data={purchaseRecords || []}
         isLoading={isLoading}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

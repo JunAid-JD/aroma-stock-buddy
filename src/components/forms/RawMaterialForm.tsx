@@ -26,6 +26,7 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
           id="sku"
           value={formData.sku || ''}
           readOnly
+          className="bg-gray-100"
         />
       </div>
       <div>
@@ -44,7 +45,18 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         </Select>
       </div>
       <div>
-        <Label htmlFor="unit_cost">Unit Cost</Label>
+        <Label htmlFor="quantity_in_stock">Quantity in Stock (ml)</Label>
+        <Input
+          id="quantity_in_stock"
+          type="number"
+          step="0.01"
+          value={formData.quantity_in_stock || ''}
+          onChange={(e) => onChange('quantity_in_stock', parseFloat(e.target.value))}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="unit_cost">Unit Cost (Rs.)</Label>
         <Input
           id="unit_cost"
           type="number"
