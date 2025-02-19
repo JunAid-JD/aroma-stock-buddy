@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,8 +47,8 @@ const FinishedGoods = () => {
       
       return data.map(item => ({
         ...item,
-        total_value: item.total_value ? `$${item.total_value.toFixed(2)}` : '$0.00',
-        unit_price: `$${item.unit_price.toFixed(2)}`
+        total_value: item.total_value ? `Rs. ${item.total_value.toFixed(2)}` : 'Rs. 0.00',
+        unit_price: item.unit_price ? `Rs. ${item.unit_price.toFixed(2)}` : 'Rs. 0.00'
       }));
     },
   });
@@ -59,28 +58,31 @@ const FinishedGoods = () => {
       if (selectedItem) {
         const { error } = await supabase
           .from("finished_products")
-          .update(formData)
+          .update({
+            name: formData.name,
+            type: formData.type,
+            quantity_in_stock: formData.quantity_in_stock,
+            reorder_point: formData.reorder_point,
+            volume_config: formData.volume_config,
+            updated_at: new Date().toISOString()
+          })
           .eq("id", selectedItem.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("finished_products")
-          .insert(formData);
+          .insert({
+            name: formData.name,
+            type: formData.type,
+            quantity_in_stock: formData.quantity_in_stock,
+            reorder_point: formData.reorder_point,
+            volume_config: formData.volume_config
+          });
         if (error) throw error;
       }
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
-      toast({
-        title: "Success",
-        description: `Item ${selectedItem ? "updated" : "created"} successfully.`,
-      });
-      setIsDialogOpen(false);
-      setSelectedItem(null);
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+      throw error;
     }
   };
 

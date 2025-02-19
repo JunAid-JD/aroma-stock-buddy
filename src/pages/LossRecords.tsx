@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 
 const columns = [
   { key: "date", label: "Date", isDate: true },
@@ -25,7 +26,7 @@ const LossRecords = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [selectedItemType, setSelectedItemType] = useState<string>(selectedRecord?.item_type || "");
+  const [selectedItemType, setSelectedItemType] = useState<string>("");
 
   const { data: lossRecords, isLoading } = useQuery({
     queryKey: ["lossRecords"],
@@ -74,12 +75,19 @@ const LossRecords = () => {
     },
   });
 
-  const handleDelete = async (record: any) => {
+  const handleDeleteClick = (record: any) => {
+    setSelectedRecord(record);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedRecord) return;
+
     try {
       const { error } = await supabase
         .from("loss_records")
         .delete()
-        .eq("id", record.id);
+        .eq("id", selectedRecord.id);
       
       if (error) throw error;
 
@@ -88,6 +96,8 @@ const LossRecords = () => {
         title: "Success",
         description: "Record deleted successfully.",
       });
+      setIsDeleteDialogOpen(false);
+      setSelectedRecord(null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -95,11 +105,6 @@ const LossRecords = () => {
         variant: "destructive",
       });
     }
-  };
-
-  const handleDeleteClick = (record: any) => {
-    setSelectedRecord(record);
-    setIsDeleteDialogOpen(true);
   };
 
   const { data: items } = useQuery({
@@ -194,8 +199,30 @@ const LossRecords = () => {
         data={lossRecords || []}
         isLoading={isLoading}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
       />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the loss record.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
@@ -283,29 +310,6 @@ const LossRecords = () => {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Loss Record</DialogTitle>
-          </DialogHeader>
-          <DialogFooter className="mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsDeleteDialogOpen(false);
-                setSelectedRecord(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

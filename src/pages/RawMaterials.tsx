@@ -45,11 +45,10 @@ const RawMaterials = () => {
       
       if (error) throw error;
       
-      // Format total value as currency
       return data.map(item => ({
         ...item,
-        total_value: item.total_value ? `$${item.total_value.toFixed(2)}` : '$0.00',
-        unit_cost: `$${item.unit_cost.toFixed(2)}`
+        total_value: item.total_value ? `Rs. ${item.total_value.toFixed(2)}` : 'Rs. 0.00',
+        unit_cost: `Rs. ${item.unit_cost.toFixed(2)}`
       }));
     },
   });
@@ -59,28 +58,31 @@ const RawMaterials = () => {
       if (selectedItem) {
         const { error } = await supabase
           .from("raw_materials")
-          .update(formData)
+          .update({
+            name: formData.name,
+            type: formData.type,
+            quantity_in_stock: formData.quantity_in_stock,
+            unit_cost: formData.unit_cost,
+            reorder_point: formData.reorder_point,
+            updated_at: new Date().toISOString()
+          })
           .eq("id", selectedItem.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("raw_materials")
-          .insert(formData);
+          .insert({
+            name: formData.name,
+            type: formData.type,
+            quantity_in_stock: formData.quantity_in_stock,
+            unit_cost: formData.unit_cost,
+            reorder_point: formData.reorder_point
+          });
         if (error) throw error;
       }
       await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
-      toast({
-        title: "Success",
-        description: `Item ${selectedItem ? "updated" : "created"} successfully.`,
-      });
-      setIsDialogOpen(false);
-      setSelectedItem(null);
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+      throw error;
     }
   };
 
