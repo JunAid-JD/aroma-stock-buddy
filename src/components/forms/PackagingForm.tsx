@@ -1,8 +1,7 @@
 
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import CommonFields from "./CommonFields";
 
 interface PackagingFormProps {
   formData: any;
@@ -11,8 +10,24 @@ interface PackagingFormProps {
 
 const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
   return (
-    <>
-      <CommonFields formData={formData} onChange={onChange} formType="packaging" />
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="name">Name</Label>
+        <Input
+          id="name"
+          value={formData.name || ''}
+          onChange={(e) => onChange('name', e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="sku">SKU</Label>
+        <Input
+          id="sku"
+          value={formData.sku || ''}
+          readOnly
+        />
+      </div>
       <div>
         <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
         <Input
@@ -20,27 +35,6 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
           type="number"
           value={formData.quantity_in_stock || ''}
           onChange={(e) => onChange('quantity_in_stock', parseInt(e.target.value))}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="unit_cost">Unit Cost (Rs.)</Label>
-        <Input
-          id="unit_cost"
-          type="number"
-          step="0.01"
-          value={formData.unit_cost || ''}
-          onChange={(e) => onChange('unit_cost', parseFloat(e.target.value))}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="reorder_point">Reorder Point</Label>
-        <Input
-          id="reorder_point"
-          type="number"
-          value={formData.reorder_point || ''}
-          onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}
           required
         />
       </div>
@@ -80,7 +74,28 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
           </SelectContent>
         </Select>
       </div>
-    </>
+      <div>
+        <Label htmlFor="unit_cost">Unit Cost</Label>
+        <Input
+          id="unit_cost"
+          type="number"
+          step="0.01"
+          value={formData.unit_cost || ''}
+          onChange={(e) => onChange('unit_cost', parseFloat(e.target.value))}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="reorder_point">Reorder Point</Label>
+        <Input
+          id="reorder_point"
+          type="number"
+          value={formData.reorder_point || ''}
+          onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}
+          required
+        />
+      </div>
+    </div>
   );
 };
 

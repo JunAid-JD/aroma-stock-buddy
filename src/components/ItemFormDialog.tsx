@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import RawMaterialForm from "./forms/RawMaterialForm";
 import PackagingForm from "./forms/PackagingForm";
 import FinishedProductForm from "./forms/FinishedProductForm";
-import CommonFields from "./forms/CommonFields";
 
 interface ItemFormDialogProps {
   isOpen: boolean;
@@ -62,15 +61,25 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
   };
 
   const handleChange = (field: string, value: any) => {
-    if (field === 'volume_config' && type === 'finished') {
-      const selectedConfig = configurations?.find(config => config.volume_config === value);
-      setFormData(prev => ({
-        ...prev,
-        [field]: value,
-        required_packaging: selectedConfig?.required_packaging
-      }));
-    } else {
-      setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const renderForm = () => {
+    switch (type) {
+      case 'raw':
+        return <RawMaterialForm formData={formData} onChange={handleChange} />;
+      case 'packaging':
+        return <PackagingForm formData={formData} onChange={handleChange} />;
+      case 'finished':
+        return (
+          <FinishedProductForm 
+            formData={formData} 
+            onChange={handleChange}
+            configurations={configurations || []}
+          />
+        );
+      default:
+        return null;
     }
   };
 
@@ -84,23 +93,7 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
-            <CommonFields formData={formData} onChange={handleChange} type={type} />
-
-            {type === 'raw' && (
-              <RawMaterialForm formData={formData} onChange={handleChange} />
-            )}
-
-            {type === 'packaging' && (
-              <PackagingForm formData={formData} onChange={handleChange} />
-            )}
-
-            {type === 'finished' && (
-              <FinishedProductForm 
-                formData={formData} 
-                onChange={handleChange}
-                configurations={configurations || []}
-              />
-            )}
+            {renderForm()}
           </div>
 
           <DialogFooter className="mt-6">

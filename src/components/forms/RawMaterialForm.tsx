@@ -1,8 +1,7 @@
 
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import CommonFields from "./CommonFields";
 
 interface RawMaterialFormProps {
   formData: any;
@@ -11,21 +10,41 @@ interface RawMaterialFormProps {
 
 const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
   return (
-    <>
-      <CommonFields formData={formData} onChange={onChange} formType="raw" />
+    <div className="space-y-4">
       <div>
-        <Label htmlFor="quantity_in_stock">Quantity in Stock (ml)</Label>
+        <Label htmlFor="name">Name</Label>
         <Input
-          id="quantity_in_stock"
-          type="number"
-          step="0.01"
-          value={formData.quantity_in_stock || ''}
-          onChange={(e) => onChange('quantity_in_stock', parseFloat(e.target.value))}
+          id="name"
+          value={formData.name || ''}
+          onChange={(e) => onChange('name', e.target.value)}
           required
         />
       </div>
       <div>
-        <Label htmlFor="unit_cost">Unit Cost (Rs.)</Label>
+        <Label htmlFor="sku">SKU</Label>
+        <Input
+          id="sku"
+          value={formData.sku || ''}
+          readOnly
+        />
+      </div>
+      <div>
+        <Label htmlFor="type">Type</Label>
+        <Select
+          value={formData.type || ''}
+          onValueChange={(value) => onChange('type', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="essential_oil">Essential Oil</SelectItem>
+            <SelectItem value="carrier_oil">Carrier Oil</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="unit_cost">Unit Cost</Label>
         <Input
           id="unit_cost"
           type="number"
@@ -46,22 +65,7 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
           required
         />
       </div>
-      <div>
-        <Label htmlFor="type">Type</Label>
-        <Select
-          value={formData.type || ''}
-          onValueChange={(value) => onChange('type', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="essential_oil">Essential Oil</SelectItem>
-            <SelectItem value="carrier_oil">Carrier Oil</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-    </>
+    </div>
   );
 };
 
