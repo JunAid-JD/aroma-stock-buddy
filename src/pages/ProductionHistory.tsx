@@ -72,10 +72,10 @@ const ProductionHistory = () => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget as HTMLFormElement);
     const data = {
-      batch_number: formData.get("batch_number") as string,
       status: formData.get("status") as string,
       notes: formData.get("notes") as string,
       product_id: batchItems[0].product_id, // Use first item as main product
+      production_date: new Date().toISOString()
     };
 
     try {

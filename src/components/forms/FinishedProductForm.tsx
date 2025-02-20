@@ -22,15 +22,6 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
         />
       </div>
       <div>
-        <Label htmlFor="sku">SKU</Label>
-        <Input
-          id="sku"
-          value={formData.sku || ''}
-          readOnly
-          className="bg-gray-100"
-        />
-      </div>
-      <div>
         <Label htmlFor="type">Type</Label>
         <Select
           value={formData.type || ''}
@@ -52,16 +43,6 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
           type="number"
           value={formData.quantity_in_stock || ''}
           onChange={(e) => onChange('quantity_in_stock', parseInt(e.target.value))}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="reorder_point">Reorder Point</Label>
-        <Input
-          id="reorder_point"
-          type="number"
-          value={formData.reorder_point || ''}
-          onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}
           required
         />
       </div>

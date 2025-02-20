@@ -35,16 +35,6 @@ const BatchForm = ({
   return (
     <form onSubmit={onSubmit}>
       <div className="space-y-4">
-        <div>
-          <Label htmlFor="batch_number">Batch Number</Label>
-          <Input
-            id="batch_number"
-            name="batch_number"
-            defaultValue={selectedBatch?.batch_number}
-            required
-          />
-        </div>
-
         <BatchItemsList
           items={batchItems}
           products={products}

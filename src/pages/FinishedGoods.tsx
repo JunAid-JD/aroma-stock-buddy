@@ -62,7 +62,6 @@ const FinishedGoods = () => {
             name: formData.name,
             type: formData.type,
             quantity_in_stock: formData.quantity_in_stock,
-            reorder_point: formData.reorder_point,
             volume_config: formData.volume_config,
             updated_at: new Date().toISOString()
           })
@@ -75,8 +74,8 @@ const FinishedGoods = () => {
             name: formData.name,
             type: formData.type,
             quantity_in_stock: formData.quantity_in_stock,
-            reorder_point: formData.reorder_point,
-            volume_config: formData.volume_config
+            volume_config: formData.volume_config,
+            sku: `FG-${Date.now().toString(36).toUpperCase()}`
           });
         if (error) throw error;
       }

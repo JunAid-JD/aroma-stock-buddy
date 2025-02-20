@@ -387,7 +387,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calculate_finished_product_cost: {
+        Args: {
+          p_finished_product_id: string
+        }
+        Returns: number
+      }
     }
     Enums: {
       material_type: "essential_oil" | "carrier_oil"
