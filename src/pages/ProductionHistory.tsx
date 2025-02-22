@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,7 +75,7 @@ const ProductionHistory = () => {
     const data = {
       status: formData.get("status") as string,
       notes: formData.get("notes") as string,
-      product_id: batchItems[0].product_id, // Use first item as main product
+      product_id: batchItems[0].product_id,
       production_date: new Date().toISOString()
     };
 
@@ -83,7 +84,10 @@ const ProductionHistory = () => {
         // Update existing batch
         const { error: batchError } = await supabase
           .from("production_batches")
-          .update(data)
+          .update({
+            ...data,
+            updated_at: new Date().toISOString()
+          })
           .eq("id", selectedBatch.id);
         
         if (batchError) throw batchError;
