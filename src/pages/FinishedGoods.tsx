@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +23,7 @@ const columns = [
   { key: "name", label: "Name" },
   { key: "type", label: "Type" },
   { key: "quantity_in_stock", label: "Stock" },
-  { key: "reorder_point", label: "Reorder Point" },
+  { key: "volume_config", label: "Volume" },
   { key: "unit_price", label: "Unit Price" },
   { key: "total_value", label: "Total Value" },
   { key: "updated_at", label: "Last Updated", isDate: true },
@@ -48,7 +49,8 @@ const FinishedGoods = () => {
       return data.map(item => ({
         ...item,
         total_value: item.total_value ? `Rs. ${item.total_value.toFixed(2)}` : 'Rs. 0.00',
-        unit_price: item.unit_price ? `Rs. ${item.unit_price.toFixed(2)}` : 'Rs. 0.00'
+        unit_price: item.unit_price ? `Rs. ${item.unit_price.toFixed(2)}` : 'Rs. 0.00',
+        volume_config: item.volume_config.replace(/_/g, ' ').replace(/(\w+)/, (s) => s.charAt(0).toUpperCase() + s.slice(1))
       }));
     },
   });
@@ -63,6 +65,7 @@ const FinishedGoods = () => {
             type: formData.type,
             quantity_in_stock: formData.quantity_in_stock,
             volume_config: formData.volume_config,
+            sku: formData.sku,
             updated_at: new Date().toISOString()
           })
           .eq("id", selectedItem.id);
@@ -75,13 +78,23 @@ const FinishedGoods = () => {
             type: formData.type,
             quantity_in_stock: formData.quantity_in_stock,
             volume_config: formData.volume_config,
-            sku: `FG-${Date.now().toString(36).toUpperCase()}`
+            sku: formData.sku
           });
         if (error) throw error;
       }
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      toast({
+        title: "Success",
+        description: `Item ${selectedItem ? "updated" : "created"} successfully.`,
+      });
+      setIsDialogOpen(false);
+      setSelectedItem(null);
     } catch (error: any) {
-      throw error;
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
