@@ -25,8 +25,9 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         <Input
           id="sku"
           value={formData.sku || ''}
-          readOnly
-          className="bg-gray-100"
+          onChange={(e) => onChange('sku', e.target.value)}
+          required
+          placeholder="Enter SKU"
         />
       </div>
       <div>
