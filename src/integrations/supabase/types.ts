@@ -255,7 +255,7 @@ export type Database = {
       }
       production_batches: {
         Row: {
-          batch_number: string
+          batch_number: string | null
           created_at: string | null
           id: string
           notes: string | null
@@ -265,7 +265,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          batch_number: string
+          batch_number?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
@@ -275,7 +275,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          batch_number?: string
+          batch_number?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null

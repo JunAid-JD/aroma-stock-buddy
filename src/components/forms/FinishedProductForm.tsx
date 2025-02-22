@@ -22,6 +22,16 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
         />
       </div>
       <div>
+        <Label htmlFor="sku">SKU</Label>
+        <Input
+          id="sku"
+          value={formData.sku || ''}
+          onChange={(e) => onChange('sku', e.target.value)}
+          required
+          placeholder="Enter SKU"
+        />
+      </div>
+      <div>
         <Label htmlFor="type">Type</Label>
         <Select
           value={formData.type || ''}
@@ -69,3 +79,4 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
 };
 
 export default FinishedProductForm;
+
