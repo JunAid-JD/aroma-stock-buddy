@@ -162,6 +162,27 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_finished_product"
+            columns: ["finished_product_id"]
+            isOneToOne: false
+            referencedRelation: "finished_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_packaging"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_raw_material"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "product_components_finished_product_id_fkey"
             columns: ["finished_product_id"]
             isOneToOne: false

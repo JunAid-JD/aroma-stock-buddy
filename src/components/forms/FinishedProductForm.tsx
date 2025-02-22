@@ -74,9 +74,18 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
           </SelectContent>
         </Select>
       </div>
+      <div>
+        <Label htmlFor="reorder_point">Reorder Point</Label>
+        <Input
+          id="reorder_point"
+          type="number"
+          value={formData.reorder_point || ''}
+          onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}
+          required
+        />
+      </div>
     </div>
   );
 };
 
 export default FinishedProductForm;
-
