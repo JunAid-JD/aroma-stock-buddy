@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +61,7 @@ const RawMaterials = () => {
           .from("raw_materials")
           .update({
             name: formData.name,
+            sku: formData.sku,
             type: formData.type,
             quantity_in_stock: formData.quantity_in_stock,
             unit_cost: formData.unit_cost,
@@ -73,6 +75,7 @@ const RawMaterials = () => {
           .from("raw_materials")
           .insert({
             name: formData.name,
+            sku: formData.sku,
             type: formData.type,
             quantity_in_stock: formData.quantity_in_stock,
             unit_cost: formData.unit_cost,
