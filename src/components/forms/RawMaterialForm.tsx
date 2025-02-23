@@ -4,7 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface RawMaterialFormProps {
-  formData: any;
+  formData: {
+    name: string;
+    sku: string;
+    type: string;
+    quantity_in_stock: number;
+    unit_cost: number;
+    reorder_point: number;
+  };
   onChange: (field: string, value: any) => void;
 }
 
@@ -50,6 +57,7 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         <Input
           id="quantity_in_stock"
           type="number"
+          min="0"
           step="0.01"
           value={formData.quantity_in_stock || ''}
           onChange={(e) => onChange('quantity_in_stock', parseFloat(e.target.value))}
@@ -61,6 +69,7 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         <Input
           id="unit_cost"
           type="number"
+          min="0"
           step="0.01"
           value={formData.unit_cost || ''}
           onChange={(e) => onChange('unit_cost', parseFloat(e.target.value))}
@@ -68,10 +77,11 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         />
       </div>
       <div>
-        <Label htmlFor="reorder_point">Reorder Point</Label>
+        <Label htmlFor="reorder_point">Reorder Point (ml)</Label>
         <Input
           id="reorder_point"
           type="number"
+          min="0"
           step="1"
           value={formData.reorder_point || ''}
           onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}

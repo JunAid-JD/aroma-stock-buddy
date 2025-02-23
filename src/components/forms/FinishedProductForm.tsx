@@ -2,14 +2,39 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState, useEffect } from "react";
+
+interface ProductConfiguration {
+  id: string;
+  name: string;
+  volume_config: string;
+  description?: string;
+  required_packaging: any;
+}
 
 interface FinishedProductFormProps {
-  formData: any;
+  formData: {
+    name: string;
+    sku: string;
+    type: string;
+    volume_config: string;
+    quantity_in_stock: number;
+    configuration_id?: string;
+  };
   onChange: (field: string, value: any) => void;
-  configurations: any[];
+  configurations: ProductConfiguration[];
 }
 
 const FinishedProductForm = ({ formData, onChange, configurations }: FinishedProductFormProps) => {
+  const [selectedConfig, setSelectedConfig] = useState<ProductConfiguration | null>(null);
+
+  useEffect(() => {
+    if (formData.configuration_id) {
+      const config = configurations.find(c => c.id === formData.configuration_id);
+      setSelectedConfig(config || null);
+    }
+  }, [formData.configuration_id, configurations]);
+
   return (
     <div className="space-y-4">
       <div>
@@ -32,55 +57,43 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
         />
       </div>
       <div>
-        <Label htmlFor="type">Type</Label>
+        <Label htmlFor="configuration">Product Configuration</Label>
         <Select
-          value={formData.type || ''}
-          onValueChange={(value) => onChange('type', value)}
+          value={formData.configuration_id || ''}
+          onValueChange={(value) => {
+            onChange('configuration_id', value);
+            const config = configurations.find(c => c.id === value);
+            if (config) {
+              onChange('volume_config', config.volume_config);
+            }
+          }}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select type" />
+            <SelectValue placeholder="Select configuration" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="essential_oil">Essential Oil</SelectItem>
-            <SelectItem value="carrier_oil">Carrier Oil</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
-        <Input
-          id="quantity_in_stock"
-          type="number"
-          value={formData.quantity_in_stock || ''}
-          onChange={(e) => onChange('quantity_in_stock', parseInt(e.target.value))}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="volume_config">Volume Configuration</Label>
-        <Select
-          value={formData.volume_config || ''}
-          onValueChange={(value) => onChange('volume_config', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select volume configuration" />
-          </SelectTrigger>
-          <SelectContent>
-            {configurations?.map((config) => (
-              <SelectItem key={config.id} value={config.volume_config}>
+            {configurations.map((config) => (
+              <SelectItem key={config.id} value={config.id}>
                 {config.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
+      {selectedConfig && (
+        <div className="text-sm text-muted-foreground">
+          <p>Configuration: {selectedConfig.description}</p>
+        </div>
+      )}
       <div>
-        <Label htmlFor="reorder_point">Reorder Point</Label>
+        <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
         <Input
-          id="reorder_point"
+          id="quantity_in_stock"
           type="number"
-          value={formData.reorder_point || ''}
-          onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}
+          min="0"
+          step="1"
+          value={formData.quantity_in_stock || ''}
+          onChange={(e) => onChange('quantity_in_stock', parseInt(e.target.value))}
           required
         />
       </div>

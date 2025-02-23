@@ -4,7 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface PackagingFormProps {
-  formData: any;
+  formData: {
+    name: string;
+    sku: string;
+    type: string;
+    size: string;
+    quantity_in_stock: number;
+    unit_cost: number;
+    reorder_point: number;
+  };
   onChange: (field: string, value: any) => void;
 }
 
@@ -25,17 +33,9 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
         <Input
           id="sku"
           value={formData.sku || ''}
-          readOnly
-        />
-      </div>
-      <div>
-        <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
-        <Input
-          id="quantity_in_stock"
-          type="number"
-          value={formData.quantity_in_stock || ''}
-          onChange={(e) => onChange('quantity_in_stock', parseInt(e.target.value))}
+          onChange={(e) => onChange('sku', e.target.value)}
           required
+          placeholder="Enter SKU"
         />
       </div>
       <div>
@@ -50,7 +50,6 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
           <SelectContent>
             <SelectItem value="bottle">Bottle</SelectItem>
             <SelectItem value="cap">Cap</SelectItem>
-            <SelectItem value="dropper">Dropper</SelectItem>
             <SelectItem value="label">Label</SelectItem>
             <SelectItem value="box">Box</SelectItem>
           </SelectContent>
@@ -58,27 +57,32 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
       </div>
       <div>
         <Label htmlFor="size">Size</Label>
-        <Select
+        <Input
+          id="size"
           value={formData.size || ''}
-          onValueChange={(value) => onChange('size', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select size" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="10ml">10ml</SelectItem>
-            <SelectItem value="30ml">30ml</SelectItem>
-            <SelectItem value="70ml">70ml</SelectItem>
-            <SelectItem value="140ml">140ml</SelectItem>
-            <SelectItem value="standard">Standard</SelectItem>
-          </SelectContent>
-        </Select>
+          onChange={(e) => onChange('size', e.target.value)}
+          required
+          placeholder="e.g., 10ml, 30ml"
+        />
       </div>
       <div>
-        <Label htmlFor="unit_cost">Unit Cost</Label>
+        <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
+        <Input
+          id="quantity_in_stock"
+          type="number"
+          min="0"
+          step="1"
+          value={formData.quantity_in_stock || ''}
+          onChange={(e) => onChange('quantity_in_stock', parseInt(e.target.value))}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="unit_cost">Unit Cost (Rs.)</Label>
         <Input
           id="unit_cost"
           type="number"
+          min="0"
           step="0.01"
           value={formData.unit_cost || ''}
           onChange={(e) => onChange('unit_cost', parseFloat(e.target.value))}
@@ -90,6 +94,8 @@ const PackagingForm = ({ formData, onChange }: PackagingFormProps) => {
         <Input
           id="reorder_point"
           type="number"
+          min="0"
+          step="1"
           value={formData.reorder_point || ''}
           onChange={(e) => onChange('reorder_point', parseInt(e.target.value))}
           required
