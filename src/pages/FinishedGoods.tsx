@@ -57,31 +57,68 @@ const FinishedGoods = () => {
 
   const handleSubmit = async (formData: any) => {
     try {
+      const productData = {
+        name: formData.name,
+        type: 'essential_oil', // Default type
+        quantity_in_stock: formData.quantity_in_stock || 0,
+        volume_config: formData.volume_config || 'essential_10ml',
+        sku: formData.sku,
+        unit_price: 0, // Initial value, will be updated by trigger
+        reorder_point: formData.reorder_point || 10,
+        updated_at: new Date().toISOString()
+      };
+
       if (selectedItem) {
         const { error } = await supabase
           .from("finished_products")
-          .update({
-            name: formData.name,
-            type: formData.type,
-            quantity_in_stock: formData.quantity_in_stock,
-            volume_config: formData.volume_config,
-            sku: formData.sku,
-            updated_at: new Date().toISOString()
-          })
+          .update(productData)
           .eq("id", selectedItem.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("finished_products")
-          .insert({
-            name: formData.name,
-            type: formData.type,
-            quantity_in_stock: formData.quantity_in_stock,
-            volume_config: formData.volume_config,
-            sku: formData.sku
-          });
+          .insert(productData);
         if (error) throw error;
       }
+
+      // If there are product components, add them
+      if (formData.components && formData.components.length > 0) {
+        // First, delete existing components if updating
+        if (selectedItem) {
+          const { error: deleteError } = await supabase
+            .from("product_components")
+            .delete()
+            .eq("finished_product_id", selectedItem.id);
+          
+          if (deleteError) throw deleteError;
+        }
+
+        // Then insert new components
+        const { data: newProduct } = await supabase
+          .from("finished_products")
+          .select("id")
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const productId = selectedItem ? selectedItem.id : newProduct?.[0]?.id;
+
+        if (productId) {
+          const componentData = formData.components.map((comp: any) => ({
+            finished_product_id: productId,
+            component_type: comp.type,
+            raw_material_id: comp.type === 'raw_material' ? comp.id : null,
+            packaging_item_id: comp.type === 'packaging' ? comp.id : null,
+            quantity_required: comp.quantity || 0
+          }));
+
+          const { error: componentsError } = await supabase
+            .from("product_components")
+            .insert(componentData);
+
+          if (componentsError) throw componentsError;
+        }
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
       toast({
         title: "Success",
@@ -90,6 +127,7 @@ const FinishedGoods = () => {
       setIsDialogOpen(false);
       setSelectedItem(null);
     } catch (error: any) {
+      console.error('Error:', error);
       toast({
         title: "Error",
         description: error.message || "Something went wrong. Please try again.",
@@ -102,7 +140,15 @@ const FinishedGoods = () => {
     if (!selectedItem) return;
 
     try {
-      // First, delete related production batch items
+      // First, delete product components
+      const { error: componentsError } = await supabase
+        .from("product_components")
+        .delete()
+        .eq("finished_product_id", selectedItem.id);
+      
+      if (componentsError) throw componentsError;
+
+      // Then delete production batch items
       const { error: batchItemsError } = await supabase
         .from("production_batch_items")
         .delete()
@@ -110,7 +156,7 @@ const FinishedGoods = () => {
       
       if (batchItemsError) throw batchItemsError;
 
-      // Then delete the product
+      // Finally delete the product
       const { error } = await supabase
         .from("finished_products")
         .delete()
