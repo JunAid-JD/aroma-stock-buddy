@@ -59,11 +59,11 @@ const FinishedGoods = () => {
     try {
       const productData = {
         name: formData.name,
-        type: 'essential_oil' as const, // Explicitly type as literal
+        type: 'essential_oil', // Default type
         quantity_in_stock: formData.quantity_in_stock || 0,
         volume_config: formData.volume_config || 'essential_10ml',
         sku: formData.sku,
-        unit_price: 0,
+        unit_price: 0, // Initial value, will be updated by trigger
         reorder_point: formData.reorder_point || 10,
         updated_at: new Date().toISOString()
       };
@@ -250,4 +250,3 @@ const FinishedGoods = () => {
 };
 
 export default FinishedGoods;
-
