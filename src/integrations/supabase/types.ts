@@ -417,6 +417,12 @@ export type Database = {
     }
     Enums: {
       material_type: "essential_oil" | "carrier_oil"
+      packaging_item_type:
+        | "bottle"
+        | "cap"
+        | "dropper"
+        | "inner_box"
+        | "outer_box"
       product_category: "raw_material" | "packaging" | "finished_product"
       product_volume_config:
         | "essential_10ml"
