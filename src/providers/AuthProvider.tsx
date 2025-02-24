@@ -25,6 +25,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session:", session);
       setSession(session);
       setUser(session?.user ?? null);
       setIsAuthenticated(!!session);
@@ -115,4 +116,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
