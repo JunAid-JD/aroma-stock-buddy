@@ -39,12 +39,18 @@ const FinishedGoods = () => {
   const { data: finishedProducts, isLoading } = useQuery({
     queryKey: ["finishedProducts"],
     queryFn: async () => {
+      console.log("Fetching finished products...");
       const { data, error } = await supabase
         .from("finished_products")
         .select("*")
         .order("name");
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching finished products:", error);
+        throw error;
+      }
+      
+      console.log("Fetched finished products:", data);
       
       return data.map(item => ({
         ...item,
@@ -57,68 +63,72 @@ const FinishedGoods = () => {
 
   const handleSubmit = async (formData: any) => {
     try {
+      console.log("Submitting form data:", formData);
+
       const productData = {
         name: formData.name,
-        type: 'essential_oil' as const, // Explicitly type as literal
+        type: 'essential_oil' as const,
         quantity_in_stock: formData.quantity_in_stock || 0,
         volume_config: formData.volume_config || 'essential_10ml',
         sku: formData.sku,
-        unit_price: 0, // Initial value, will be updated by trigger
         reorder_point: formData.reorder_point || 10,
         updated_at: new Date().toISOString()
       };
 
+      let productId: string;
+
       if (selectedItem) {
+        console.log("Updating existing product:", selectedItem.id);
         const { error } = await supabase
           .from("finished_products")
           .update(productData)
           .eq("id", selectedItem.id);
         if (error) throw error;
+        productId = selectedItem.id;
       } else {
-        const { error } = await supabase
+        console.log("Creating new product");
+        const { data, error } = await supabase
           .from("finished_products")
-          .insert(productData);
+          .insert(productData)
+          .select()
+          .single();
         if (error) throw error;
+        productId = data.id;
       }
 
       // If there are product components, add them
       if (formData.components && formData.components.length > 0) {
         // First, delete existing components if updating
         if (selectedItem) {
+          console.log("Deleting existing components for product:", productId);
           const { error: deleteError } = await supabase
             .from("product_components")
             .delete()
-            .eq("finished_product_id", selectedItem.id);
+            .eq("finished_product_id", productId);
           
           if (deleteError) throw deleteError;
         }
 
         // Then insert new components
-        const { data: newProduct } = await supabase
-          .from("finished_products")
-          .select("id")
-          .order('created_at', { ascending: false })
-          .limit(1);
+        console.log("Inserting new components for product:", productId);
+        const componentData = formData.components.map((comp: any) => ({
+          finished_product_id: productId,
+          component_type: comp.type,
+          raw_material_id: comp.type === 'raw_material' ? comp.raw_material_id : null,
+          packaging_item_id: comp.type === 'packaging' ? comp.packaging_item_id : null,
+          quantity_required: comp.quantity_required,
+          quantity_per_unit: comp.quantity_per_unit
+        }));
 
-        const productId = selectedItem ? selectedItem.id : newProduct?.[0]?.id;
+        const { error: componentsError } = await supabase
+          .from("product_components")
+          .insert(componentData);
 
-        if (productId) {
-          const componentData = formData.components.map((comp: any) => ({
-            finished_product_id: productId,
-            component_type: comp.type,
-            raw_material_id: comp.type === 'raw_material' ? comp.id : null,
-            packaging_item_id: comp.type === 'packaging' ? comp.id : null,
-            quantity_required: comp.quantity || 0
-          }));
-
-          const { error: componentsError } = await supabase
-            .from("product_components")
-            .insert(componentData);
-
-          if (componentsError) throw componentsError;
-        }
+        if (componentsError) throw componentsError;
       }
 
+      console.log("Operation completed successfully");
+      
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
       toast({
         title: "Success",
@@ -140,6 +150,8 @@ const FinishedGoods = () => {
     if (!selectedItem) return;
 
     try {
+      console.log("Deleting product:", selectedItem.id);
+      
       // First, delete product components
       const { error: componentsError } = await supabase
         .from("product_components")
@@ -164,6 +176,8 @@ const FinishedGoods = () => {
       
       if (error) throw error;
 
+      console.log("Product deleted successfully");
+
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
       toast({
         title: "Success",
@@ -172,6 +186,7 @@ const FinishedGoods = () => {
       setIsDeleteDialogOpen(false);
       setSelectedItem(null);
     } catch (error: any) {
+      console.error('Error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to delete item.",
@@ -250,4 +265,3 @@ const FinishedGoods = () => {
 };
 
 export default FinishedGoods;
-

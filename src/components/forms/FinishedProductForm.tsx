@@ -41,6 +41,7 @@ interface FinishedProductFormProps {
 
 const FinishedProductForm = ({ formData, onChange, configurations }: FinishedProductFormProps) => {
   const [selectedConfig, setSelectedConfig] = useState<ProductConfiguration | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const { data: rawMaterials } = useQuery({
     queryKey: ["rawMaterials"],
@@ -70,8 +71,44 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
     if (formData.configuration_id) {
       const config = configurations.find(c => c.id === formData.configuration_id);
       setSelectedConfig(config || null);
+      
+      if (config) {
+        onChange('volume_config', config.volume_config);
+      }
     }
   }, [formData.configuration_id, configurations]);
+
+  const validateForm = () => {
+    if (!formData.name || !formData.sku || !formData.configuration_id) {
+      setValidationError("Please fill in all required fields");
+      return false;
+    }
+    
+    if (!formData.components || formData.components.length === 0) {
+      setValidationError("Please add at least one component");
+      return false;
+    }
+
+    for (const component of formData.components) {
+      if (!component.quantity_required || component.quantity_required <= 0) {
+        setValidationError("All components must have a quantity greater than 0");
+        return false;
+      }
+      
+      if (component.type === 'raw_material' && !component.raw_material_id) {
+        setValidationError("Please select a raw material for all raw material components");
+        return false;
+      }
+      
+      if (component.type === 'packaging' && !component.packaging_item_id) {
+        setValidationError("Please select a packaging item for all packaging components");
+        return false;
+      }
+    }
+
+    setValidationError(null);
+    return true;
+  };
 
   const handleAddComponent = () => {
     const components = formData.components || [];
@@ -105,6 +142,9 @@ const FinishedProductForm = ({ formData, onChange, configurations }: FinishedPro
 
   return (
     <div className="space-y-4">
+      {validationError && (
+        <div className="text-red-500 text-sm">{validationError}</div>
+      )}
       <div>
         <Label htmlFor="name">Name</Label>
         <Input
