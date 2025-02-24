@@ -20,7 +20,7 @@ import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 const queryClient = new QueryClient();
 
 // Protected Route component to handle authentication
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
   
   if (!isAuthenticated) {
@@ -66,3 +66,4 @@ const App = () => {
 };
 
 export default App;
+
