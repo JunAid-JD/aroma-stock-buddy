@@ -11,16 +11,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
 import ItemFormDialog from "@/components/ItemFormDialog";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Component {
   id: string;
   name: string;
   quantity_required: number;
   quantity_per_unit: number;
-  type: 'raw_material' | 'packaging';
+  type: "raw_material" | "packaging";
 }
 
 interface FinishedProduct {
@@ -33,66 +32,40 @@ interface FinishedProduct {
 }
 
 const SKUDependencyMapping = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<FinishedProduct | null>(null);
   const { toast } = useToast();
+  const [selectedProduct, setSelectedProduct] = useState<FinishedProduct | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ["finishedProductsWithComponents"],
+  const { data: finishedProducts, refetch } = useQuery({
+    queryKey: ["finishedProducts"],
     queryFn: async () => {
-      console.log("Fetching finished products with components...");
-      
-      // First, get all finished products
-      const { data: productsData, error: productsError } = await supabase
+      const { data: products, error } = await supabase
         .from("finished_products")
-        .select("*")
+        .select(`
+          *,
+          components:product_components(
+            id,
+            quantity_required,
+            quantity_per_unit,
+            component_type,
+            raw_materials:raw_material_id(id, name),
+            packaging_items:packaging_item_id(id, name)
+          )
+        `)
         .order("name");
-      
-      if (productsError) {
-        console.error("Error fetching products:", productsError);
-        throw productsError;
-      }
 
-      // Then, for each product, get its components
-      const productsWithComponents = await Promise.all(
-        productsData.map(async (product) => {
-          const { data: components, error: componentsError } = await supabase
-            .from("product_components")
-            .select(`
-              id,
-              component_type,
-              quantity_required,
-              quantity_per_unit,
-              raw_materials(id, name),
-              packaging_items(id, name)
-            `)
-            .eq("finished_product_id", product.id);
+      if (error) throw error;
 
-          if (componentsError) {
-            console.error("Error fetching components:", componentsError);
-            throw componentsError;
-          }
-
-          // Transform components data
-          const transformedComponents = components.map((component) => ({
-            id: component.id,
-            name: component.component_type === 'raw_material' 
-              ? component.raw_materials?.name 
-              : component.packaging_items?.name,
-            quantity_required: component.quantity_required,
-            quantity_per_unit: component.quantity_per_unit,
-            type: component.component_type,
-          }));
-
-          return {
-            ...product,
-            components: transformedComponents,
-          };
-        })
-      );
-
-      console.log("Fetched products with components:", productsWithComponents);
-      return productsWithComponents;
+      return products.map((product) => ({
+        ...product,
+        components: product.components.map((component: any) => ({
+          id: component.id,
+          name: component.raw_materials?.name || component.packaging_items?.name,
+          quantity_required: component.quantity_required,
+          quantity_per_unit: component.quantity_per_unit,
+          type: component.component_type,
+        })),
+      }));
     },
   });
 
@@ -101,105 +74,96 @@ const SKUDependencyMapping = () => {
     setIsDialogOpen(true);
   };
 
-  const handleCreate = () => {
+  const handleClose = () => {
     setSelectedProduct(null);
-    setIsDialogOpen(true);
+    setIsDialogOpen(false);
+  };
+
+  const handleSubmit = async (data: any) => {
+    try {
+      const { error } = await supabase
+        .from("product_components")
+        .update({
+          quantity_required: data.quantity_required,
+          quantity_per_unit: data.quantity_per_unit,
+        })
+        .eq("id", data.id);
+
+      if (error) throw error;
+
+      await refetch();
+      toast({
+        title: "Success",
+        description: "Component updated successfully",
+      });
+    } catch (error) {
+      console.error("Error updating component:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update component",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">SKU Dependency Mapping</h2>
-          <p className="text-muted-foreground">
-            Manage relationships between finished products and their components
-          </p>
-        </div>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create New Product
-        </Button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">SKU Dependencies</h1>
       </div>
 
-      {isLoading ? (
-        <div>Loading...</div>
-      ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Volume</TableHead>
-                <TableHead>Components</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product Name</TableHead>
+              <TableHead>SKU</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Volume</TableHead>
+              <TableHead>Components</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {finishedProducts?.map((product) => (
+              <TableRow key={product.id}>
+                <TableCell>{product.name}</TableCell>
+                <TableCell>{product.sku}</TableCell>
+                <TableCell>{product.type}</TableCell>
+                <TableCell>{product.volume_config}</TableCell>
+                <TableCell>
+                  <ul className="list-disc list-inside">
+                    {product.components.map((component) => (
+                      <li key={component.id}>
+                        {component.name} ({component.quantity_required} {component.type === 'raw_material' ? 'ml' : 'units'})
+                      </li>
+                    ))}
+                  </ul>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(product)}
+                  >
+                    Edit Components
+                  </Button>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products?.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell>{product.sku}</TableCell>
-                  <TableCell>{product.type}</TableCell>
-                  <TableCell>
-                    {product.volume_config.replace(/_/g, ' ')
-                      .replace(/(\w+)/, (s) => s.charAt(0).toUpperCase() + s.slice(1))}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {product.components.map((component) => (
-                        <div key={component.id} className="text-sm">
-                          <span className="font-medium">{component.name}</span>
-                          {" - "}
-                          <span className="text-muted-foreground">
-                            {component.quantity_required} units 
-                            {component.quantity_per_unit > 1 && ` (${component.quantity_per_unit} per unit)`}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" onClick={() => handleEdit(product)}>
-                      Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
-      <ItemFormDialog
-        isOpen={isDialogOpen}
-        onClose={() => {
-          setIsDialogOpen(false);
-          setSelectedProduct(null);
-        }}
-        onSubmit={async (formData) => {
-          // You already have the form submission logic in ItemFormDialog
-          try {
-            // Pass through the existing submission logic
-            await handleSubmit(formData);
-            setIsDialogOpen(false);
-            setSelectedProduct(null);
-            toast({
-              title: "Success",
-              description: `Product ${selectedProduct ? "updated" : "created"} successfully.`,
-            });
-          } catch (error: any) {
-            toast({
-              title: "Error",
-              description: error.message || "An error occurred while saving the product.",
-              variant: "destructive",
-            });
-          }
-        }}
-        item={selectedProduct}
-        type="finished"
-      />
+      {selectedProduct && (
+        <ItemFormDialog
+          isOpen={isDialogOpen}
+          onClose={handleClose}
+          onSubmit={handleSubmit}
+          item={selectedProduct}
+          type="finished"
+        />
+      )}
     </div>
   );
 };
