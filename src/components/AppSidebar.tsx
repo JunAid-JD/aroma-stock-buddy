@@ -11,147 +11,57 @@ import {
   Network
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { useSidebar } from "@/components/ui/sidebar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 
 const AppSidebar = () => {
-  const { isOpen, setIsOpen } = useSidebar();
+  const menuItems = [
+    { icon: LayoutDashboard, label: "Dashboard", to: "/" },
+    { icon: Boxes, label: "Raw Materials", to: "/raw-goods" },
+    { icon: Package, label: "Packaging", to: "/packaging-goods" },
+    { icon: PackageOpen, label: "Finished Goods", to: "/finished-goods" },
+    { icon: Network, label: "SKU Dependencies", to: "/sku-mapping" },
+    { icon: AlertTriangle, label: "Loss Records", to: "/loss-records" },
+    { icon: ShoppingCart, label: "Purchase Records", to: "/purchase-records" },
+    { icon: History, label: "Production History", to: "/production-history" },
+  ];
 
   return (
-    <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      <SheetContent
-        side="left"
-        className="w-[300px] border-r px-0"
-      >
-        <SheetHeader className="px-6 py-4 border-b">
-          <SheetTitle>Inventory Management</SheetTitle>
-        </SheetHeader>
-        <ScrollArea className="h-full py-6">
-          <div className="space-y-1">
-            <NavLink to="/" end>
-              {({ isActive }) => (
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start px-6",
-                    isActive && "bg-muted"
-                  )}
+    <Sidebar>
+      <SidebarHeader className="px-6 py-4 text-xl font-semibold">
+        Inventory Management
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarMenu>
+          {menuItems.map((item) => (
+            <SidebarMenuItem key={item.to}>
+              <SidebarMenuButton asChild>
+                <NavLink
+                  to={item.to}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-2 w-full px-6 py-2",
+                      isActive && "bg-muted"
+                    )
+                  }
                 >
-                  <LayoutDashboard className="mr-2 h-4 w-4" />
-                  Dashboard
-                </Button>
-              )}
-            </NavLink>
-            <NavLink to="/raw-goods">
-              {({ isActive }) => (
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start px-6",
-                    isActive && "bg-muted"
-                  )}
-                >
-                  <Boxes className="mr-2 h-4 w-4" />
-                  Raw Materials
-                </Button>
-              )}
-            </NavLink>
-            <NavLink to="/packaging-goods">
-              {({ isActive }) => (
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start px-6",
-                    isActive && "bg-muted"
-                  )}
-                >
-                  <Package className="mr-2 h-4 w-4" />
-                  Packaging
-                </Button>
-              )}
-            </NavLink>
-            <NavLink to="/finished-goods">
-              {({ isActive }) => (
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start px-6",
-                    isActive && "bg-muted"
-                  )}
-                >
-                  <PackageOpen className="mr-2 h-4 w-4" />
-                  Finished Goods
-                </Button>
-              )}
-            </NavLink>
-            <NavLink to="/sku-mapping">
-              {({ isActive }) => (
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start px-6",
-                    isActive && "bg-muted"
-                  )}
-                >
-                  <Network className="mr-2 h-4 w-4" />
-                  SKU Dependencies
-                </Button>
-              )}
-            </NavLink>
-            <NavLink to="/loss-records">
-              {({ isActive }) => (
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start px-6",
-                    isActive && "bg-muted"
-                  )}
-                >
-                  <AlertTriangle className="mr-2 h-4 w-4" />
-                  Loss Records
-                </Button>
-              )}
-            </NavLink>
-            <NavLink to="/purchase-records">
-              {({ isActive }) => (
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start px-6",
-                    isActive && "bg-muted"
-                  )}
-                >
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  Purchase Records
-                </Button>
-              )}
-            </NavLink>
-            <NavLink to="/production-history">
-              {({ isActive }) => (
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start px-6",
-                    isActive && "bg-muted"
-                  )}
-                >
-                  <History className="mr-2 h-4 w-4" />
-                  Production History
-                </Button>
-              )}
-            </NavLink>
-          </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarContent>
+    </Sidebar>
   );
 };
 
 export default AppSidebar;
+
