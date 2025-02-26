@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, X } from "lucide-react";
 
 interface BatchItem {
-  product_id: string;
+  item_id: string;
   quantity: number;
 }
 
@@ -27,16 +27,17 @@ const BatchItemsList = ({ items, products, onAddItem, onRemoveItem, onUpdateItem
           <div className="flex-1">
             <Label htmlFor={`product_${index}`}>Product</Label>
             <Select 
-              value={item.product_id}
-              onValueChange={(value) => onUpdateItem(index, 'product_id', value)}
+              value={item.item_id}
+              onValueChange={(value) => onUpdateItem(index, 'item_id', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select product" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">Select an item</SelectItem>
                 {products?.map((product: any) => (
                   <SelectItem key={product.id} value={product.id}>
-                    {product.name}
+                    {product.name} ({product.type})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -72,7 +73,7 @@ const BatchItemsList = ({ items, products, onAddItem, onRemoveItem, onUpdateItem
         className="w-full"
       >
         <Plus className="mr-2 h-4 w-4" />
-        Add Product
+        Add Item
       </Button>
     </div>
   );
