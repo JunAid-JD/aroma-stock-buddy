@@ -8,7 +8,7 @@ import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import BatchForm from "@/components/production/BatchForm";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const columns = [
   { key: "batch_number", label: "Batch #" },
@@ -48,37 +48,20 @@ const ProductionHistory = () => {
 
       if (error) throw error;
 
-      // Fetch product names in a separate query
-      const allItemIds = batches?.flatMap(batch => 
-        batch.production_batch_items?.map(item => item.item_id) || []
-      ) || [];
-
-      const { data: finishedProducts } = await supabase
+      // Fetch all item names in a single query
+      const { data: items } = await supabase
         .from("finished_products")
-        .select("id, name")
-        .in("id", allItemIds);
+        .select("id, name");
 
-      const { data: rawMaterials } = await supabase
-        .from("raw_materials")
-        .select("id, name")
-        .in("id", allItemIds);
-
-      const { data: packagingItems } = await supabase
-        .from("packaging_items")
-        .select("id, name")
-        .in("id", allItemIds);
-
-      // Create a map of all items
-      const itemsMap = new Map([
-        ...(finishedProducts || []).map(p => [p.id, p.name]),
-        ...(rawMaterials || []).map(r => [r.id, r.name]),
-        ...(packagingItems || []).map(p => [p.id, p.name])
-      ]);
+      // Create a map of item IDs to names
+      const itemMap = new Map(
+        (items || []).map(item => [item.id, item.name])
+      );
 
       return (batches || []).map(batch => ({
         ...batch,
         items_summary: batch.production_batch_items
-          ?.map(item => `${itemsMap.get(item.item_id) || 'Unknown'} (${item.quantity})`)
+          ?.map(item => `${itemMap.get(item.item_id) || 'Unknown'} (${item.quantity})`)
           .join(", ") || "No items"
       }));
     },
@@ -87,21 +70,12 @@ const ProductionHistory = () => {
   const { data: products } = useQuery({
     queryKey: ["allProducts"],
     queryFn: async () => {
-      const [
-        { data: finishedProducts },
-        { data: rawMaterials },
-        { data: packagingItems }
-      ] = await Promise.all([
-        supabase.from("finished_products").select("id, name"),
-        supabase.from("raw_materials").select("id, name"),
-        supabase.from("packaging_items").select("id, name")
-      ]);
-
-      return [
-        ...(finishedProducts || []).map(p => ({ ...p, type: 'finished_product' })),
-        ...(rawMaterials || []).map(r => ({ ...r, type: 'raw_material' })),
-        ...(packagingItems || []).map(p => ({ ...p, type: 'packaging' }))
-      ];
+      const { data: finishedProducts, error } = await supabase
+        .from("finished_products")
+        .select("id, name");
+      
+      if (error) throw error;
+      return finishedProducts.map(p => ({ ...p, type: 'finished_product' }));
     },
   });
 
@@ -113,6 +87,10 @@ const ProductionHistory = () => {
     const productionDate = new Date().toISOString();
 
     try {
+      if (!batchItems[0].item_id) {
+        throw new Error("Please select at least one product for the batch");
+      }
+
       if (selectedBatch) {
         // Update existing batch
         const { error: batchError } = await supabase
@@ -154,7 +132,8 @@ const ProductionHistory = () => {
           .insert({
             status,
             notes,
-            production_date: productionDate
+            production_date: productionDate,
+            product_id: batchItems[0].item_id // Use the first item as the main product
           })
           .select()
           .single();
@@ -181,11 +160,11 @@ const ProductionHistory = () => {
         description: `Batch ${selectedBatch ? "updated" : "added"} successfully.`,
       });
       handleClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
     }
@@ -336,3 +315,4 @@ const ProductionHistory = () => {
 };
 
 export default ProductionHistory;
+
