@@ -8,7 +8,7 @@ import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import BatchForm from "@/components/production/BatchForm";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 
 const columns = [
   { key: "batch_number", label: "Batch #" },
@@ -19,14 +19,14 @@ const columns = [
 ];
 
 interface BatchItem {
-  item_id: string;
+  product_id: string;
   quantity: number;
 }
 
 const ProductionHistory = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
-  const [batchItems, setBatchItems] = useState<BatchItem[]>([{ item_id: "", quantity: 0 }]);
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([{ product_id: "", quantity: 0 }]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -39,65 +39,53 @@ const ProductionHistory = () => {
         .select(`
           *,
           production_batch_items (
-            item_id,
             quantity,
-            item_type
+            finished_products (
+              name
+            )
           )
         `)
         .order("production_date", { ascending: false });
 
       if (error) throw error;
 
-      // Fetch all item names in a single query
-      const { data: items } = await supabase
-        .from("finished_products")
-        .select("id, name");
-
-      // Create a map of item IDs to names
-      const itemMap = new Map(
-        (items || []).map(item => [item.id, item.name])
-      );
-
       return (batches || []).map(batch => ({
         ...batch,
         items_summary: batch.production_batch_items
-          ?.map(item => `${itemMap.get(item.item_id) || 'Unknown'} (${item.quantity})`)
+          ?.map(item => `${item.finished_products.name} (${item.quantity})`)
           .join(", ") || "No items"
       }));
     },
   });
 
   const { data: products } = useQuery({
-    queryKey: ["allProducts"],
+    queryKey: ["finishedProducts"],
     queryFn: async () => {
-      const { data: finishedProducts, error } = await supabase
+      const { data, error } = await supabase
         .from("finished_products")
         .select("id, name");
-      
       if (error) throw error;
-      return finishedProducts.map(p => ({ ...p, type: 'finished_product' }));
+      return data || [];
     },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget as HTMLFormElement);
-    const status = formData.get("status") as string;
-    const notes = formData.get("notes") as string;
-    const productionDate = new Date().toISOString();
+    const data = {
+      status: formData.get("status") as string,
+      notes: formData.get("notes") as string,
+      product_id: batchItems[0].product_id,
+      production_date: new Date().toISOString()
+    };
 
     try {
-      if (!batchItems[0].item_id) {
-        throw new Error("Please select at least one product for the batch");
-      }
-
       if (selectedBatch) {
         // Update existing batch
         const { error: batchError } = await supabase
           .from("production_batches")
           .update({
-            status,
-            notes,
+            ...data,
             updated_at: new Date().toISOString()
           })
           .eq("id", selectedBatch.id);
@@ -118,8 +106,8 @@ const ProductionHistory = () => {
           .insert(
             batchItems.map(item => ({
               batch_id: selectedBatch.id,
-              item_id: item.item_id,
-              quantity: item.quantity
+              item_id: item.product_id,
+              quantity: item.quantity,
             }))
           );
 
@@ -129,12 +117,7 @@ const ProductionHistory = () => {
         // Create new batch
         const { data: newBatch, error: batchError } = await supabase
           .from("production_batches")
-          .insert({
-            status,
-            notes,
-            production_date: productionDate,
-            product_id: batchItems[0].item_id // Use the first item as the main product
-          })
+          .insert(data)
           .select()
           .single();
 
@@ -146,8 +129,8 @@ const ProductionHistory = () => {
           .insert(
             batchItems.map(item => ({
               batch_id: newBatch.id,
-              item_id: item.item_id,
-              quantity: item.quantity
+              item_id: item.product_id,
+              quantity: item.quantity,
             }))
           );
 
@@ -160,11 +143,11 @@ const ProductionHistory = () => {
         description: `Batch ${selectedBatch ? "updated" : "added"} successfully.`,
       });
       handleClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error:', error);
       toast({
         title: "Error",
-        description: error.message || "Something went wrong. Please try again.",
+        description: "Something went wrong. Please try again.",
         variant: "destructive",
       });
     }
@@ -173,27 +156,27 @@ const ProductionHistory = () => {
   const handleClose = () => {
     setIsDialogOpen(false);
     setSelectedBatch(null);
-    setBatchItems([{ item_id: "", quantity: 0 }]);
+    setBatchItems([{ product_id: "", quantity: 0 }]);
   };
 
   const handleAdd = () => {
     setSelectedBatch(null);
-    setBatchItems([{ item_id: "", quantity: 0 }]);
+    setBatchItems([{ product_id: "", quantity: 0 }]);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (batch: any) => {
     setSelectedBatch(batch);
     const items = batch.production_batch_items?.map((item: any) => ({
-      item_id: item.item_id,
+      product_id: item.finished_products.id,
       quantity: item.quantity,
-    })) || [{ item_id: "", quantity: 0 }];
+    })) || [{ product_id: "", quantity: 0 }];
     setBatchItems(items);
     setIsDialogOpen(true);
   };
 
   const addBatchItem = () => {
-    setBatchItems([...batchItems, { item_id: "", quantity: 0 }]);
+    setBatchItems([...batchItems, { product_id: "", quantity: 0 }]);
   };
 
   const removeBatchItem = (index: number) => {
@@ -315,4 +298,3 @@ const ProductionHistory = () => {
 };
 
 export default ProductionHistory;
-

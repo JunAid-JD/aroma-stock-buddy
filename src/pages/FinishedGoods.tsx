@@ -59,17 +59,14 @@ const FinishedGoods = () => {
     try {
       const productData = {
         name: formData.name,
-        type: 'essential_oil',
+        type: 'essential_oil' as const, // Explicitly type as literal
         quantity_in_stock: formData.quantity_in_stock || 0,
         volume_config: formData.volume_config || 'essential_10ml',
         sku: formData.sku,
-        unit_price: 0,
+        unit_price: 0, // Initial value, will be updated by trigger
         reorder_point: formData.reorder_point || 10,
-        configuration_id: formData.configuration_id,
         updated_at: new Date().toISOString()
       };
-
-      let productId = selectedItem?.id;
 
       if (selectedItem) {
         const { error } = await supabase
@@ -78,18 +75,15 @@ const FinishedGoods = () => {
           .eq("id", selectedItem.id);
         if (error) throw error;
       } else {
-        const { data: newProduct, error } = await supabase
+        const { error } = await supabase
           .from("finished_products")
-          .insert(productData)
-          .select()
-          .single();
+          .insert(productData);
         if (error) throw error;
-        productId = newProduct.id;
       }
 
-      // Handle dependencies
-      if (formData.dependencies && formData.dependencies.length > 0) {
-        // First, delete existing dependencies if updating
+      // If there are product components, add them
+      if (formData.components && formData.components.length > 0) {
+        // First, delete existing components if updating
         if (selectedItem) {
           const { error: deleteError } = await supabase
             .from("product_components")
@@ -99,26 +93,36 @@ const FinishedGoods = () => {
           if (deleteError) throw deleteError;
         }
 
-        // Insert new dependencies
-        const componentData = formData.dependencies.map((dep: any) => ({
-          finished_product_id: productId,
-          component_type: dep.item_type,
-          raw_material_id: dep.item_type === 'raw_material' ? dep.item_id : null,
-          packaging_item_id: dep.item_type === 'packaging' ? dep.item_id : null,
-          quantity_required: dep.quantity_required
-        }));
+        // Then insert new components
+        const { data: newProduct } = await supabase
+          .from("finished_products")
+          .select("id")
+          .order('created_at', { ascending: false })
+          .limit(1);
 
-        const { error: componentsError } = await supabase
-          .from("product_components")
-          .insert(componentData);
+        const productId = selectedItem ? selectedItem.id : newProduct?.[0]?.id;
 
-        if (componentsError) throw componentsError;
+        if (productId) {
+          const componentData = formData.components.map((comp: any) => ({
+            finished_product_id: productId,
+            component_type: comp.type,
+            raw_material_id: comp.type === 'raw_material' ? comp.id : null,
+            packaging_item_id: comp.type === 'packaging' ? comp.id : null,
+            quantity_required: comp.quantity || 0
+          }));
+
+          const { error: componentsError } = await supabase
+            .from("product_components")
+            .insert(componentData);
+
+          if (componentsError) throw componentsError;
+        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
       toast({
         title: "Success",
-        description: `Product ${selectedItem ? "updated" : "created"} successfully.`,
+        description: `Item ${selectedItem ? "updated" : "created"} successfully.`,
       });
       setIsDialogOpen(false);
       setSelectedItem(null);
@@ -136,7 +140,7 @@ const FinishedGoods = () => {
     if (!selectedItem) return;
 
     try {
-      // First delete dependencies
+      // First, delete product components
       const { error: componentsError } = await supabase
         .from("product_components")
         .delete()
@@ -163,14 +167,14 @@ const FinishedGoods = () => {
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
       toast({
         title: "Success",
-        description: "Product deleted successfully.",
+        description: "Item deleted successfully.",
       });
       setIsDeleteDialogOpen(false);
       setSelectedItem(null);
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete product.",
+        description: error.message || "Failed to delete item.",
         variant: "destructive",
       });
     }

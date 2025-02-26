@@ -7,7 +7,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 import BatchItemsList from "./BatchItemsList";
 
 interface BatchItem {
-  item_id: string;
+  product_id: string;
   quantity: number;
 }
 
@@ -33,39 +33,41 @@ const BatchForm = ({
   onUpdateItem,
 }: BatchFormProps) => {
   return (
-    <form onSubmit={onSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto">
-      <BatchItemsList
-        items={batchItems}
-        products={products}
-        onAddItem={onAddItem}
-        onRemoveItem={onRemoveItem}
-        onUpdateItem={onUpdateItem}
-      />
-
-      <div>
-        <Label htmlFor="status">Status</Label>
-        <Select 
-          name="status" 
-          defaultValue={selectedBatch?.status || "in_progress"}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <Label htmlFor="notes">Notes</Label>
-        <Input
-          id="notes"
-          name="notes"
-          defaultValue={selectedBatch?.notes}
+    <form onSubmit={onSubmit}>
+      <div className="space-y-4">
+        <BatchItemsList
+          items={batchItems}
+          products={products}
+          onAddItem={onAddItem}
+          onRemoveItem={onRemoveItem}
+          onUpdateItem={onUpdateItem}
         />
+
+        <div>
+          <Label htmlFor="status">Status</Label>
+          <Select 
+            name="status" 
+            defaultValue={selectedBatch?.status || "in_progress"}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="notes">Notes</Label>
+          <Input
+            id="notes"
+            name="notes"
+            defaultValue={selectedBatch?.notes}
+          />
+        </div>
       </div>
 
       <DialogFooter className="mt-6">
