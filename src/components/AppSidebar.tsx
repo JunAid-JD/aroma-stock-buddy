@@ -1,67 +1,98 @@
 
-import { NavLink } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Boxes,
-  Package,
-  PackageOpen,
-  AlertTriangle,
-  ShoppingCart,
-  History,
-  Network
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Package, Box, Archive, History, AlertTriangle, ShoppingCart, LayoutDashboard, LogOut } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/providers/AuthProvider";
 import {
   Sidebar,
   SidebarContent,
-  SidebarHeader,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
+const menuItems = [
+  {
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    url: "/",
+  },
+  {
+    title: "Raw Goods",
+    icon: Box,
+    url: "/raw-goods",
+  },
+  {
+    title: "Packaging Goods",
+    icon: Package,
+    url: "/packaging-goods",
+  },
+  {
+    title: "Finished Goods",
+    icon: Archive,
+    url: "/finished-goods",
+  },
+  {
+    title: "Production History",
+    icon: History,
+    url: "/production-history",
+  },
+  {
+    title: "Loss Records",
+    icon: AlertTriangle,
+    url: "/loss-records",
+  },
+  {
+    title: "Purchase Records",
+    icon: ShoppingCart,
+    url: "/purchase-records",
+  },
+];
+
 const AppSidebar = () => {
-  const menuItems = [
-    { icon: LayoutDashboard, label: "Dashboard", to: "/" },
-    { icon: Boxes, label: "Raw Materials", to: "/raw-goods" },
-    { icon: Package, label: "Packaging", to: "/packaging-goods" },
-    { icon: PackageOpen, label: "Finished Goods", to: "/finished-goods" },
-    { icon: Network, label: "SKU Dependencies", to: "/sku-mapping" },
-    { icon: AlertTriangle, label: "Loss Records", to: "/loss-records" },
-    { icon: ShoppingCart, label: "Purchase Records", to: "/purchase-records" },
-    { icon: History, label: "Production History", to: "/production-history" },
-  ];
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   return (
     <Sidebar>
-      <SidebarHeader className="px-6 py-4 text-xl font-semibold">
-        Inventory Management
-      </SidebarHeader>
       <SidebarContent>
-        <SidebarMenu>
-          {menuItems.map((item) => (
-            <SidebarMenuItem key={item.to}>
-              <SidebarMenuButton asChild>
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-2 w-full px-6 py-2",
-                      isActive && "bg-muted"
-                    )
-                  }
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+        <SidebarGroup>
+          <SidebarGroupLabel>Inventory Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    isActive={location.pathname === item.url}
+                    onClick={() => navigate(item.url)}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={logout}>
+                  <LogOut className="w-5 h-5" />
+                  <span>Logout</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );
 };
 
 export default AppSidebar;
-
