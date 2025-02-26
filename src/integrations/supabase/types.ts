@@ -139,6 +139,7 @@ export type Database = {
           finished_product_id: string | null
           id: string
           packaging_item_id: string | null
+          quantity_per_unit: number
           quantity_required: number
           raw_material_id: string | null
         }
@@ -148,6 +149,7 @@ export type Database = {
           finished_product_id?: string | null
           id?: string
           packaging_item_id?: string | null
+          quantity_per_unit?: number
           quantity_required: number
           raw_material_id?: string | null
         }
@@ -157,6 +159,7 @@ export type Database = {
           finished_product_id?: string | null
           id?: string
           packaging_item_id?: string | null
+          quantity_per_unit?: number
           quantity_required?: number
           raw_material_id?: string | null
         }
