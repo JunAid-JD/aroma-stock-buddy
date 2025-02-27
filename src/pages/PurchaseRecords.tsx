@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,25 +21,13 @@ const columns = [
   { key: "supplier", label: "Supplier" },
 ];
 
-interface PurchaseRecord {
-  id: string;
-  date: string;
-  item_id: string;
-  item_type: "raw_material" | "packaging" | "finished_product";
-  quantity: number;
-  unit_cost: number;
-  total_cost: number;
-  supplier: string;
-  item_name?: string;
-}
-
 const PurchaseRecords = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<PurchaseRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedItemType, setSelectedItemType] = useState<string>("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [selectedItemType, setSelectedItemType] = useState<string>("");
 
   const { data: purchaseRecords, isLoading } = useQuery({
     queryKey: ["purchaseRecords"],
@@ -69,6 +56,13 @@ const PurchaseRecords = () => {
             .eq('id', record.item_id)
             .single();
           if (data) itemName = data.name;
+        } else if (record.item_type === 'finished_product') {
+          const { data } = await supabase
+            .from('finished_products')
+            .select('name')
+            .eq('id', record.item_id)
+            .single();
+          if (data) itemName = data.name;
         }
 
         return {
@@ -82,74 +76,51 @@ const PurchaseRecords = () => {
   });
 
   const { data: items } = useQuery({
-    queryKey: ["allItems", selectedItemType],
+    queryKey: ["allItems"],
     queryFn: async () => {
-      if (!selectedItemType) return [];
+      const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
+        supabase.from("raw_materials").select("id, name"),
+        supabase.from("packaging_items").select("id, name, type, size"),
+        supabase.from("finished_products").select("id, name"),
+      ]);
 
-      const query = {
-        raw_material: () => supabase.from("raw_materials").select("id, name"),
-        packaging: () => supabase.from("packaging_items").select("id, name, type, size"),
-      }[selectedItemType];
-
-      if (!query) return [];
-
-      const { data, error } = await query();
-      
-      if (error) throw error;
-
-      if (selectedItemType === 'packaging') {
-        return data.map((item: any) => ({
+      return {
+        raw_material: rawMaterials.data || [],
+        packaging: packagingItems.data?.map(item => ({
           ...item,
           name: `${item.name} (${item.type} - ${item.size})`
-        }));
-      }
-
-      return data || [];
+        })) || [],
+        finished_product: finishedProducts.data || [],
+      };
     },
-    enabled: !!selectedItemType
   });
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async (formData: any) => {
     try {
-      const formData = new FormData(e.currentTarget);
-      const quantity = parseFloat(formData.get("quantity") as string);
-      const unitCost = parseFloat(formData.get("unit_cost") as string);
-      const data = {
-        item_id: formData.get("item_id") as string,
-        item_type: formData.get("item_type") as "raw_material" | "packaging" | "finished_product",
-        quantity,
-        unit_cost: unitCost,
-        total_cost: quantity * unitCost,
-        supplier: formData.get("supplier") as string,
-        date: selectedRecord?.date || new Date().toISOString(),
-      };
-
       if (selectedRecord) {
         const { error } = await supabase
           .from("purchase_records")
-          .update(data)
+          .update(formData)
           .eq("id", selectedRecord.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("purchase_records")
-          .insert(data);
+          .insert(formData);
         if (error) throw error;
       }
-
       await queryClient.invalidateQueries({ queryKey: ["purchaseRecords"] });
       toast({
         title: "Success",
-        description: `Purchase record ${selectedRecord ? "updated" : "added"} successfully.`,
+        description: `Record ${selectedRecord ? "updated" : "added"} successfully.`,
       });
       setIsDialogOpen(false);
       setSelectedRecord(null);
       setSelectedItemType("");
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Something went wrong. Please try again.",
+        description: "Something went wrong. Please try again.",
         variant: "destructive",
       });
     }
@@ -161,13 +132,13 @@ const PurchaseRecords = () => {
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (record: PurchaseRecord) => {
+  const handleEdit = (record: any) => {
     setSelectedRecord(record);
     setSelectedItemType(record.item_type);
     setIsDialogOpen(true);
   };
 
-  const handleDeleteClick = (record: PurchaseRecord) => {
+  const handleDeleteClick = (record: any) => {
     setSelectedRecord(record);
     setIsDeleteDialogOpen(true);
   };
@@ -186,7 +157,7 @@ const PurchaseRecords = () => {
       await queryClient.invalidateQueries({ queryKey: ["purchaseRecords"] });
       toast({
         title: "Success",
-        description: "Purchase record deleted successfully.",
+        description: "Record deleted successfully.",
       });
       setIsDeleteDialogOpen(false);
       setSelectedRecord(null);
@@ -213,7 +184,6 @@ const PurchaseRecords = () => {
           Record Purchase
         </Button>
       </div>
-
       <DataTable
         columns={columns}
         data={purchaseRecords || []}
@@ -229,7 +199,22 @@ const PurchaseRecords = () => {
               {selectedRecord ? "Edit" : "Add"} Purchase Record
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const quantity = parseFloat(formData.get("quantity") as string);
+            const unitCost = parseFloat(formData.get("unit_cost") as string);
+            const data = {
+              item_id: formData.get("item_id") as string,
+              item_type: formData.get("item_type") as "raw_material" | "packaging" | "finished_product",
+              quantity,
+              unit_cost: unitCost,
+              total_cost: quantity * unitCost,
+              supplier: formData.get("supplier") as string,
+              date: selectedRecord?.date || new Date().toISOString(),
+            };
+            handleSubmit(data);
+          }}>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="item_type">Type</Label>
@@ -244,6 +229,7 @@ const PurchaseRecords = () => {
                   <SelectContent>
                     <SelectItem value="raw_material">Raw Material</SelectItem>
                     <SelectItem value="packaging">Packaging</SelectItem>
+                    <SelectItem value="finished_product">Finished Product</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -252,18 +238,13 @@ const PurchaseRecords = () => {
                 <Label htmlFor="item_id">Item</Label>
                 <Select 
                   name="item_id" 
-                  value={selectedRecord?.item_id}
-                  onValueChange={(value) => {
-                    if (selectedRecord) {
-                      setSelectedRecord({ ...selectedRecord, item_id: value });
-                    }
-                  }}
+                  defaultValue={selectedRecord?.item_id}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select item" />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectedItemType && items && items.map((item: any) => (
+                    {selectedItemType && items && items[selectedItemType]?.map((item: any) => (
                       <SelectItem key={item.id} value={item.id}>
                         {item.name}
                       </SelectItem>
@@ -353,4 +334,3 @@ const PurchaseRecords = () => {
 };
 
 export default PurchaseRecords;
-
