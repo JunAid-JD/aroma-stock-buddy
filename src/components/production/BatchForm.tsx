@@ -40,6 +40,21 @@ const BatchForm = ({
 }: BatchFormProps) => {
   const [selectedType, setSelectedType] = useState<"finished_product" | "raw_material" | "packaging">("finished_product");
   
+  // Helper function to get item name by ID and type
+  const getItemNameById = (id: string, type: string) => {
+    if (type === "finished_product") {
+      const product = finishedProducts.find(p => p.id === id);
+      return product ? product.name : "Unknown product";
+    } else if (type === "raw_material") {
+      const material = rawMaterials.find(m => m.id === id);
+      return material ? material.name : "Unknown material";
+    } else if (type === "packaging") {
+      const packaging = packagingItems.find(p => p.id === id);
+      return packaging ? `${packaging.name} (${packaging.type})` : "Unknown packaging";
+    }
+    return "Unknown item";
+  };
+  
   return (
     <form onSubmit={onSubmit}>
       <div className="space-y-4">
@@ -53,6 +68,7 @@ const BatchForm = ({
           onUpdateItem={onUpdateItem}
           selectedType={selectedType}
           setSelectedType={setSelectedType}
+          getItemNameById={getItemNameById}
         />
 
         <div>
