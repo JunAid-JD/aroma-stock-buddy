@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
@@ -12,21 +12,22 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 
 const columns = [
   { key: "batch_number", label: "Batch #" },
-  { key: "items_summary", label: "Products" },
+  { key: "items_summary", label: "Items" },
   { key: "production_date", label: "Date", isDate: true },
   { key: "status", label: "Status" },
   { key: "notes", label: "Notes" },
 ];
 
 interface BatchItem {
-  product_id: string;
+  item_id: string;
+  item_type: "raw_material" | "finished_product";
   quantity: number;
 }
 
 const ProductionHistory = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
-  const [batchItems, setBatchItems] = useState<BatchItem[]>([{ product_id: "", quantity: 0 }]);
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -40,29 +41,97 @@ const ProductionHistory = () => {
           *,
           production_batch_items (
             quantity,
-            finished_products (
-              name
-            )
+            item_type,
+            item_id
           )
         `)
         .order("production_date", { ascending: false });
 
       if (error) throw error;
 
-      return (batches || []).map(batch => ({
-        ...batch,
-        items_summary: batch.production_batch_items
-          ?.map(item => `${item.finished_products.name} (${item.quantity})`)
-          .join(", ") || "No items"
+      // We need to fetch the names of the items
+      const batchesWithNames = await Promise.all((batches || []).map(async (batch) => {
+        const itemsWithNames = await Promise.all((batch.production_batch_items || []).map(async (item) => {
+          let name = "Unknown";
+          
+          if (item.item_type === 'finished_product') {
+            const { data } = await supabase
+              .from("finished_products")
+              .select("name")
+              .eq("id", item.item_id)
+              .maybeSingle();
+            name = data?.name || "Unknown Product";
+          } else if (item.item_type === 'raw_material') {
+            const { data } = await supabase
+              .from("raw_materials")
+              .select("name")
+              .eq("id", item.item_id)
+              .maybeSingle();
+            name = data?.name || "Unknown Raw Material";
+          }
+          
+          return `${name} (${item.quantity}) - ${item.item_type === 'finished_product' ? 'FG' : 'RM'}`;
+        }));
+        
+        return {
+          ...batch,
+          items_summary: itemsWithNames.join(", ") || "No items"
+        };
       }));
+      
+      return batchesWithNames;
     },
   });
 
-  const { data: products } = useQuery({
+  // Listen for realtime updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'production_batches'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'production_batch_items'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
+        }
+      )
+      .subscribe();   
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  const { data: finishedProducts } = useQuery({
     queryKey: ["finishedProducts"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("finished_products")
+        .select("id, name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: rawMaterials } = useQuery({
+    queryKey: ["rawMaterials"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("raw_materials")
         .select("id, name");
       if (error) throw error;
       return data || [];
@@ -75,7 +144,6 @@ const ProductionHistory = () => {
     const data = {
       status: formData.get("status") as string,
       notes: formData.get("notes") as string,
-      product_id: batchItems[0].product_id,
       production_date: new Date().toISOString()
     };
 
@@ -106,7 +174,8 @@ const ProductionHistory = () => {
           .insert(
             batchItems.map(item => ({
               batch_id: selectedBatch.id,
-              item_id: item.product_id,
+              item_id: item.item_id,
+              item_type: item.item_type,
               quantity: item.quantity,
             }))
           );
@@ -117,7 +186,11 @@ const ProductionHistory = () => {
         // Create new batch
         const { data: newBatch, error: batchError } = await supabase
           .from("production_batches")
-          .insert(data)
+          .insert({
+            ...data,
+            // We're not sending product_id because we have multiple item types now
+            product_id: batchItems[0].item_type === 'finished_product' ? batchItems[0].item_id : rawMaterials?.[0]?.id
+          })
           .select()
           .single();
 
@@ -129,7 +202,8 @@ const ProductionHistory = () => {
           .insert(
             batchItems.map(item => ({
               batch_id: newBatch.id,
-              item_id: item.product_id,
+              item_id: item.item_id,
+              item_type: item.item_type,
               quantity: item.quantity,
             }))
           );
@@ -138,6 +212,10 @@ const ProductionHistory = () => {
       }
 
       await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
+      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+      await queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
+      
       toast({
         title: "Success",
         description: `Batch ${selectedBatch ? "updated" : "added"} successfully.`,
@@ -156,27 +234,43 @@ const ProductionHistory = () => {
   const handleClose = () => {
     setIsDialogOpen(false);
     setSelectedBatch(null);
-    setBatchItems([{ product_id: "", quantity: 0 }]);
+    setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
   };
 
   const handleAdd = () => {
     setSelectedBatch(null);
-    setBatchItems([{ product_id: "", quantity: 0 }]);
+    setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (batch: any) => {
     setSelectedBatch(batch);
-    const items = batch.production_batch_items?.map((item: any) => ({
-      product_id: item.finished_products.id,
-      quantity: item.quantity,
-    })) || [{ product_id: "", quantity: 0 }];
-    setBatchItems(items);
-    setIsDialogOpen(true);
+    
+    // Extract batch items - we need to get their details from the production_batch_items
+    supabase
+      .from("production_batch_items")
+      .select("*")
+      .eq("batch_id", batch.id)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching batch items:", error);
+          setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
+        } else if (data && data.length > 0) {
+          setBatchItems(data.map(item => ({
+            item_id: item.item_id,
+            item_type: item.item_type,
+            quantity: item.quantity,
+          })));
+        } else {
+          setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
+        }
+        
+        setIsDialogOpen(true);
+      });
   };
 
   const addBatchItem = () => {
-    setBatchItems([...batchItems, { product_id: "", quantity: 0 }]);
+    setBatchItems([...batchItems, { item_id: "", item_type: "finished_product", quantity: 1 }]);
   };
 
   const removeBatchItem = (index: number) => {
@@ -255,7 +349,7 @@ const ProductionHistory = () => {
       />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedBatch ? "Edit" : "Add"} Production Batch
@@ -264,7 +358,8 @@ const ProductionHistory = () => {
           <BatchForm
             selectedBatch={selectedBatch}
             batchItems={batchItems}
-            products={products || []}
+            finishedProducts={finishedProducts || []}
+            rawMaterials={rawMaterials || []}
             onSubmit={handleSubmit}
             onClose={handleClose}
             onAddItem={addBatchItem}

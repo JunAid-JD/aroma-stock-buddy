@@ -5,16 +5,19 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
 import BatchItemsList from "./BatchItemsList";
+import { useState } from "react";
 
 interface BatchItem {
-  product_id: string;
+  item_id: string;
+  item_type: "raw_material" | "finished_product";
   quantity: number;
 }
 
 interface BatchFormProps {
   selectedBatch: any;
   batchItems: BatchItem[];
-  products: any[];
+  finishedProducts: any[];
+  rawMaterials: any[];
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
   onAddItem: () => void;
@@ -25,22 +28,28 @@ interface BatchFormProps {
 const BatchForm = ({
   selectedBatch,
   batchItems,
-  products,
+  finishedProducts,
+  rawMaterials,
   onSubmit,
   onClose,
   onAddItem,
   onRemoveItem,
   onUpdateItem,
 }: BatchFormProps) => {
+  const [selectedType, setSelectedType] = useState<"finished_product" | "raw_material">("finished_product");
+  
   return (
     <form onSubmit={onSubmit}>
       <div className="space-y-4">
         <BatchItemsList
           items={batchItems}
-          products={products}
+          finishedProducts={finishedProducts}
+          rawMaterials={rawMaterials}
           onAddItem={onAddItem}
           onRemoveItem={onRemoveItem}
           onUpdateItem={onUpdateItem}
+          selectedType={selectedType}
+          setSelectedType={setSelectedType}
         />
 
         <div>

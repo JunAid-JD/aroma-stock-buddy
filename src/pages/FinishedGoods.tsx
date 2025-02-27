@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
@@ -55,15 +55,48 @@ const FinishedGoods = () => {
     },
   });
 
+  // Listen for realtime updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'finished_products'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+        }
+      )
+      .subscribe();   
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   const handleSubmit = async (formData: any) => {
     try {
+      // First check if there's a dependency mapping for this SKU
+      const { data: depData, error: depError } = await supabase
+        .from("sku_dependencies")
+        .select("finished_product_name")
+        .eq("finished_product_sku", formData.sku)
+        .maybeSingle();
+
+      if (depError) {
+        console.error("Error checking dependency:", depError);
+      }
+
       const productData = {
-        name: formData.name,
-        type: 'essential_oil' as const, // Explicitly type as literal
+        name: depData?.finished_product_name || formData.name || formData.sku,
+        type: 'essential_oil' as const,
         quantity_in_stock: formData.quantity_in_stock || 0,
         volume_config: formData.volume_config || 'essential_10ml',
         sku: formData.sku,
-        unit_price: 0, // Initial value, will be updated by trigger
+        unit_price: 0, // Will be calculated by the database trigger
         reorder_point: formData.reorder_point || 10,
         updated_at: new Date().toISOString()
       };
@@ -79,44 +112,6 @@ const FinishedGoods = () => {
           .from("finished_products")
           .insert(productData);
         if (error) throw error;
-      }
-
-      // If there are product components, add them
-      if (formData.components && formData.components.length > 0) {
-        // First, delete existing components if updating
-        if (selectedItem) {
-          const { error: deleteError } = await supabase
-            .from("product_components")
-            .delete()
-            .eq("finished_product_id", selectedItem.id);
-          
-          if (deleteError) throw deleteError;
-        }
-
-        // Then insert new components
-        const { data: newProduct } = await supabase
-          .from("finished_products")
-          .select("id")
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        const productId = selectedItem ? selectedItem.id : newProduct?.[0]?.id;
-
-        if (productId) {
-          const componentData = formData.components.map((comp: any) => ({
-            finished_product_id: productId,
-            component_type: comp.type,
-            raw_material_id: comp.type === 'raw_material' ? comp.id : null,
-            packaging_item_id: comp.type === 'packaging' ? comp.id : null,
-            quantity_required: comp.quantity || 0
-          }));
-
-          const { error: componentsError } = await supabase
-            .from("product_components")
-            .insert(componentData);
-
-          if (componentsError) throw componentsError;
-        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
@@ -250,4 +245,3 @@ const FinishedGoods = () => {
 };
 
 export default FinishedGoods;
-

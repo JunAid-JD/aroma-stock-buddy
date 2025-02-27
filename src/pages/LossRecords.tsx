@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
@@ -67,13 +68,35 @@ const LossRecords = () => {
         return {
           ...record,
           item_name: itemName,
-          cost_impact: record.cost_impact ? `$${record.cost_impact.toFixed(2)}` : 'Calculating...'
+          cost_impact: record.cost_impact ? `Rs. ${record.cost_impact.toFixed(2)}` : 'Calculating...'
         };
       });
 
       return Promise.all(itemPromises);
     },
   });
+
+  // Listen for realtime updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'loss_records'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["lossRecords"] });
+        }
+      )
+      .subscribe();   
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const handleDeleteClick = (record: any) => {
     setSelectedRecord(record);
@@ -92,6 +115,10 @@ const LossRecords = () => {
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: ["lossRecords"] });
+      await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+      await queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
+      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      
       toast({
         title: "Success",
         description: "Record deleted successfully.",
@@ -152,6 +179,10 @@ const LossRecords = () => {
         if (error) throw error;
       }
       await queryClient.invalidateQueries({ queryKey: ["lossRecords"] });
+      await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+      await queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
+      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      
       toast({
         title: "Success",
         description: `Record ${selectedRecord ? "updated" : "added"} successfully.`,
@@ -162,158 +193,4 @@ const LossRecords = () => {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleAdd = () => {
-    setSelectedRecord(null);
-    setSelectedItemType("");
-    setIsDialogOpen(true);
-  };
-
-  const handleEdit = (record: any) => {
-    setSelectedRecord(record);
-    setSelectedItemType(record.item_type);
-    setIsDialogOpen(true);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Loss Records</h2>
-          <p className="text-muted-foreground">
-            Track and manage inventory losses
-          </p>
-        </div>
-        <Button onClick={handleAdd}>
-          <Plus className="mr-2 h-4 w-4" />
-          Record Loss
-        </Button>
-      </div>
-      <DataTable
-        columns={columns}
-        data={lossRecords || []}
-        isLoading={isLoading}
-        onEdit={handleEdit}
-        onDelete={handleDeleteClick}
-      />
-
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the loss record.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDelete}
-              className="bg-red-500 hover:bg-red-600"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {selectedRecord ? "Edit" : "Add"} Loss Record
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="item_type">Type</Label>
-                <Select
-                  name="item_type"
-                  value={selectedItemType}
-                  onValueChange={setSelectedItemType}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="raw_material">Raw Material</SelectItem>
-                    <SelectItem value="packaging">Packaging</SelectItem>
-                    <SelectItem value="finished_product">Finished Product</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="item_id">Item</Label>
-                <Select 
-                  name="item_id" 
-                  defaultValue={selectedRecord?.item_id}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select item" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {selectedItemType && items && items[selectedItemType]?.map((item: any) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="quantity">Quantity Lost</Label>
-                <Input
-                  id="quantity"
-                  name="quantity"
-                  type="number"
-                  step="0.01"
-                  defaultValue={selectedRecord?.quantity}
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="reason">Reason</Label>
-                <Input
-                  id="reason"
-                  name="reason"
-                  defaultValue={selectedRecord?.reason}
-                  required
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsDialogOpen(false);
-                  setSelectedRecord(null);
-                  setSelectedItemType("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">
-                {selectedRecord ? "Update" : "Create"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
-
-export default LossRecords;
+        description: "Something went wrong.
