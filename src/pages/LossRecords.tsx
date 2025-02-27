@@ -193,4 +193,139 @@ const LossRecords = () => {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Something went wrong.
+        description: "Something went wrong.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Loss Records</h1>
+        <Button onClick={() => {
+          setSelectedRecord(null);
+          setIsDialogOpen(true);
+        }}>
+          <Plus className="mr-2 h-4 w-4" /> Add Loss Record
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div>Loading...</div>
+      ) : (
+        <DataTable
+          data={lossRecords || []}
+          columns={columns}
+          onEditClick={(record) => {
+            setSelectedRecord(record);
+            setSelectedItemType(record.item_type);
+            setIsDialogOpen(true);
+          }}
+          onDeleteClick={handleDeleteClick}
+        />
+      )}
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedRecord ? "Edit" : "Add"} Loss Record</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="item_type" className="text-right">
+                  Item Type
+                </Label>
+                <Select
+                  name="item_type"
+                  value={selectedItemType}
+                  onValueChange={setSelectedItemType}
+                  required
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select item type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="raw_material">Raw Material</SelectItem>
+                    <SelectItem value="packaging">Packaging</SelectItem>
+                    <SelectItem value="finished_product">Finished Product</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedItemType && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="item_id" className="text-right">
+                    Item
+                  </Label>
+                  <Select name="item_id" required defaultValue={selectedRecord?.item_id}>
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {items && items[selectedItemType]?.map((item: any) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quantity" className="text-right">
+                  Quantity Lost
+                </Label>
+                <Input
+                  id="quantity"
+                  name="quantity"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  defaultValue={selectedRecord?.quantity || ""}
+                  className="col-span-3"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="reason" className="text-right">
+                  Reason
+                </Label>
+                <Input
+                  id="reason"
+                  name="reason"
+                  defaultValue={selectedRecord?.reason || ""}
+                  className="col-span-3"
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Save</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the loss record.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
+export default LossRecords;
