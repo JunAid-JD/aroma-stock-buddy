@@ -144,10 +144,19 @@ const ProductionHistory = () => {
     const data = {
       status: formData.get("status") as string,
       notes: formData.get("notes") as string,
-      production_date: new Date().toISOString()
+      production_date: new Date().toISOString(),
+      // Need to set a product_id even though we're handling multiple items
+      // This is for compatibility with the existing database schema
+      product_id: batchItems[0].item_id || finishedProducts?.[0]?.id || rawMaterials?.[0]?.id
     };
 
     try {
+      // Validate that all batch items have valid IDs
+      const invalidItems = batchItems.filter(item => !item.item_id);
+      if (invalidItems.length > 0) {
+        throw new Error("All batch items must have a selected product or material");
+      }
+
       if (selectedBatch) {
         // Update existing batch
         const { error: batchError } = await supabase
@@ -186,11 +195,7 @@ const ProductionHistory = () => {
         // Create new batch
         const { data: newBatch, error: batchError } = await supabase
           .from("production_batches")
-          .insert({
-            ...data,
-            // We're not sending product_id because we have multiple item types now
-            product_id: batchItems[0].item_type === 'finished_product' ? batchItems[0].item_id : rawMaterials?.[0]?.id
-          })
+          .insert(data)
           .select()
           .single();
 
@@ -221,11 +226,11 @@ const ProductionHistory = () => {
         description: `Batch ${selectedBatch ? "updated" : "added"} successfully.`,
       });
       handleClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
     }

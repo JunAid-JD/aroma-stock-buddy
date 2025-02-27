@@ -11,12 +11,13 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const columns = [
-  { key: "finished_product_sku", label: "Finished Product SKU" },
-  { key: "finished_product_name", label: "Finished Product Name" },
-  { key: "raw_material_sku", label: "Raw Material SKU" },
-  { key: "packaging_items", label: "Packaging Items" },
+  { key: "finished_product_name", label: "Finished Product" },
+  { key: "component_type", label: "Component Type" },
+  { key: "component_name", label: "Component Name" },
+  { key: "quantity_required", label: "Quantity Required" },
   { key: "updated_at", label: "Last Updated", isDate: true },
 ];
 
@@ -24,6 +25,7 @@ const SKUDependencyMapping = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedDependency, setSelectedDependency] = useState<any>(null);
+  const [selectedTab, setSelectedTab] = useState<'raw_material' | 'packaging'>('raw_material');
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -32,21 +34,55 @@ const SKUDependencyMapping = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sku_dependencies")
-        .select("*")
-        .order("finished_product_name");
+        .select(`
+          id, 
+          quantity_required,
+          item_type,
+          updated_at,
+          finished_products(id, name),
+          raw_materials(id, name),
+          packaging_items(id, name, type, size)
+        `)
+        .order("updated_at", { ascending: false });
 
       if (error) throw error;
 
-      return data.map((dep) => ({
-        ...dep,
-        packaging_items: [
-          dep.bottle_sku && `Bottle: ${dep.bottle_sku}`,
-          dep.cap_sku && `Cap: ${dep.cap_sku}`,
-          dep.dropper_sku && `Dropper: ${dep.dropper_sku}`,
-          dep.inner_box_sku && `Inner Box: ${dep.inner_box_sku}`,
-          dep.outer_box_sku && `Outer Box: ${dep.outer_box_sku}`,
-        ].filter(Boolean).join(", ") || "None",
-      }));
+      return data.map((dep) => {
+        const finishedProduct = dep.finished_products;
+        const rawMaterial = dep.raw_materials;
+        const packagingItem = dep.packaging_items;
+        
+        let componentName = 'Unknown';
+        let componentType = dep.item_type;
+        
+        if (dep.item_type === 'raw_material' && rawMaterial) {
+          componentName = rawMaterial.name;
+        } else if (dep.item_type === 'packaging' && packagingItem) {
+          componentName = `${packagingItem.name} (${packagingItem.type} - ${packagingItem.size})`;
+        }
+        
+        return {
+          ...dep,
+          finished_product_name: finishedProduct?.name || 'Unknown Product',
+          component_type: componentType === 'raw_material' ? 'Raw Material' : 'Packaging',
+          component_name: componentName,
+          finished_product_id: finishedProduct?.id,
+          raw_material_id: rawMaterial?.id,
+          packaging_item_id: packagingItem?.id,
+        };
+      });
+    },
+  });
+
+  const { data: finishedProducts } = useQuery({
+    queryKey: ["finishedProducts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("finished_products")
+        .select("id, name, sku")
+        .order("name");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -79,30 +115,24 @@ const SKUDependencyMapping = () => {
     const formData = new FormData(e.currentTarget as HTMLFormElement);
     
     try {
-      const data = {
-        finished_product_sku: formData.get("finished_product_sku") as string,
-        finished_product_name: formData.get("finished_product_name") as string,
-        raw_material_sku: formData.get("raw_material_sku") as string,
-        raw_material_quantity: parseFloat(formData.get("raw_material_quantity") as string) || 1,
-        bottle_sku: formData.get("bottle_sku") as string || null,
-        bottle_quantity: parseInt(formData.get("bottle_quantity") as string) || 1,
-        cap_sku: formData.get("cap_sku") as string || null,
-        cap_quantity: parseInt(formData.get("cap_quantity") as string) || 1,
-        dropper_sku: formData.get("dropper_sku") as string || null,
-        dropper_quantity: parseInt(formData.get("dropper_quantity") as string) || 1,
-        inner_box_sku: formData.get("inner_box_sku") as string || null,
-        inner_box_quantity: parseInt(formData.get("inner_box_quantity") as string) || 1,
-        outer_box_sku: formData.get("outer_box_sku") as string || null,
-        outer_box_quantity: parseInt(formData.get("outer_box_quantity") as string) || 1,
-        updated_at: new Date().toISOString(),
+      const itemType = formData.get("item_type") as "raw_material" | "packaging";
+      const finishedProductId = formData.get("finished_product_id") as string;
+      const quantityRequired = parseFloat(formData.get("quantity_required") as string) || 1;
+      
+      let data: any = {
+        finished_product_id: finishedProductId,
+        item_type: itemType,
+        quantity_required: quantityRequired
       };
-
-      // Clean up empty values to be null
-      Object.keys(data).forEach((key) => {
-        if (data[key] === '') {
-          data[key] = null;
-        }
-      });
+      
+      // Add the appropriate component ID based on the item type
+      if (itemType === 'raw_material') {
+        data.raw_material_id = formData.get("component_id") as string;
+        data.packaging_item_id = null;
+      } else if (itemType === 'packaging') {
+        data.packaging_item_id = formData.get("component_id") as string;
+        data.raw_material_id = null;
+      }
 
       if (selectedDependency) {
         const { error } = await supabase
@@ -176,6 +206,7 @@ const SKUDependencyMapping = () => {
 
   const handleEdit = (item: any) => {
     setSelectedDependency(item);
+    setSelectedTab(item.item_type);
     setIsDialogOpen(true);
   };
 
@@ -207,227 +238,110 @@ const SKUDependencyMapping = () => {
       />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {selectedDependency ? "Edit" : "Add"} SKU Dependency
+              {selectedDependency ? "Edit" : "Add"} Component Dependency
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="finished_product_sku">Finished Product SKU</Label>
-                  <Input
-                    id="finished_product_sku"
-                    name="finished_product_sku"
-                    defaultValue={selectedDependency?.finished_product_sku}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="finished_product_name">Finished Product Name</Label>
-                  <Input
-                    id="finished_product_name"
-                    name="finished_product_name"
-                    defaultValue={selectedDependency?.finished_product_name}
-                    required
-                  />
-                </div>
+              <div>
+                <Label htmlFor="finished_product_id">Finished Product</Label>
+                <Select
+                  name="finished_product_id"
+                  defaultValue={selectedDependency?.finished_product_id}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a finished product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {finishedProducts?.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name} ({product.sku})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="raw_material_sku">Raw Material SKU</Label>
-                  <Select
-                    name="raw_material_sku"
-                    defaultValue={selectedDependency?.raw_material_sku}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select raw material" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {rawMaterials?.map((material) => (
-                        <SelectItem key={material.id} value={material.sku}>
-                          {material.name} ({material.sku})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="raw_material_quantity">Raw Material Quantity (ml)</Label>
-                  <Input
-                    id="raw_material_quantity"
-                    name="raw_material_quantity"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={selectedDependency?.raw_material_quantity || 1}
-                  />
-                </div>
-              </div>
+              <Tabs 
+                defaultValue={selectedDependency?.item_type || "raw_material"} 
+                value={selectedTab}
+                onValueChange={(value) => setSelectedTab(value as 'raw_material' | 'packaging')}
+              >
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="raw_material">Raw Material</TabsTrigger>
+                  <TabsTrigger value="packaging">Packaging</TabsTrigger>
+                </TabsList>
+                
+                <input
+                  type="hidden"
+                  name="item_type"
+                  value={selectedTab}
+                />
+                
+                <TabsContent value="raw_material">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="component_id">Raw Material</Label>
+                      <Select
+                        name="component_id"
+                        defaultValue={selectedDependency?.raw_material_id}
+                        required
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a raw material" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {rawMaterials?.map((material) => (
+                            <SelectItem key={material.id} value={material.id}>
+                              {material.name} ({material.sku})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="packaging">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="component_id">Packaging Item</Label>
+                      <Select
+                        name="component_id"
+                        defaultValue={selectedDependency?.packaging_item_id}
+                        required
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a packaging item" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {packagingItems?.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.name} - {item.type} {item.size} ({item.sku})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
 
-              <h3 className="text-lg font-medium pt-2">Packaging Components</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="bottle_sku">Bottle SKU</Label>
-                  <Select
-                    name="bottle_sku"
-                    defaultValue={selectedDependency?.bottle_sku || ""}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select bottle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {packagingItems?.filter(item => item.type === 'bottle').map((item) => (
-                        <SelectItem key={item.id} value={item.sku}>
-                          {item.name} {item.size} ({item.sku})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="bottle_quantity">Bottle Quantity</Label>
-                  <Input
-                    id="bottle_quantity"
-                    name="bottle_quantity"
-                    type="number"
-                    min="0"
-                    defaultValue={selectedDependency?.bottle_quantity || 1}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="cap_sku">Cap SKU</Label>
-                  <Select
-                    name="cap_sku"
-                    defaultValue={selectedDependency?.cap_sku || ""}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select cap" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {packagingItems?.filter(item => item.type === 'cap').map((item) => (
-                        <SelectItem key={item.id} value={item.sku}>
-                          {item.name} {item.size} ({item.sku})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="cap_quantity">Cap Quantity</Label>
-                  <Input
-                    id="cap_quantity"
-                    name="cap_quantity"
-                    type="number"
-                    min="0"
-                    defaultValue={selectedDependency?.cap_quantity || 1}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="dropper_sku">Dropper SKU</Label>
-                  <Select
-                    name="dropper_sku"
-                    defaultValue={selectedDependency?.dropper_sku || ""}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select dropper" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {packagingItems?.filter(item => item.type === 'dropper').map((item) => (
-                        <SelectItem key={item.id} value={item.sku}>
-                          {item.name} {item.size} ({item.sku})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="dropper_quantity">Dropper Quantity</Label>
-                  <Input
-                    id="dropper_quantity"
-                    name="dropper_quantity"
-                    type="number"
-                    min="0"
-                    defaultValue={selectedDependency?.dropper_quantity || 1}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="inner_box_sku">Inner Box SKU</Label>
-                  <Select
-                    name="inner_box_sku"
-                    defaultValue={selectedDependency?.inner_box_sku || ""}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select inner box" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {packagingItems?.filter(item => item.type === 'inner_box').map((item) => (
-                        <SelectItem key={item.id} value={item.sku}>
-                          {item.name} {item.size} ({item.sku})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="inner_box_quantity">Inner Box Quantity</Label>
-                  <Input
-                    id="inner_box_quantity"
-                    name="inner_box_quantity"
-                    type="number"
-                    min="0"
-                    defaultValue={selectedDependency?.inner_box_quantity || 1}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="outer_box_sku">Outer Box SKU</Label>
-                  <Select
-                    name="outer_box_sku"
-                    defaultValue={selectedDependency?.outer_box_sku || ""}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select outer box" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {packagingItems?.filter(item => item.type === 'outer_box').map((item) => (
-                        <SelectItem key={item.id} value={item.sku}>
-                          {item.name} {item.size} ({item.sku})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="outer_box_quantity">Outer Box Quantity</Label>
-                  <Input
-                    id="outer_box_quantity"
-                    name="outer_box_quantity"
-                    type="number"
-                    min="0"
-                    defaultValue={selectedDependency?.outer_box_quantity || 1}
-                  />
-                </div>
+              <div>
+                <Label htmlFor="quantity_required">Quantity Required</Label>
+                <Input
+                  id="quantity_required"
+                  name="quantity_required"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  defaultValue={selectedDependency?.quantity_required || 1}
+                  required
+                />
               </div>
             </div>
 
@@ -455,7 +369,7 @@ const SKUDependencyMapping = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the SKU dependency mapping.
+              This action cannot be undone. This will permanently delete the component dependency.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
