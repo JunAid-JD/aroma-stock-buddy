@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import BatchForm from "@/components/production/BatchForm";
+import BatchForm, { BatchItem } from "@/components/production/BatchForm";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 
 const columns = [
@@ -17,12 +17,6 @@ const columns = [
   { key: "status", label: "Status" },
   { key: "notes", label: "Notes" },
 ];
-
-interface BatchItem {
-  item_id: string;
-  item_type: "raw_material" | "finished_product";
-  quantity: number;
-}
 
 const ProductionHistory = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -68,9 +62,16 @@ const ProductionHistory = () => {
               .eq("id", item.item_id)
               .maybeSingle();
             name = data?.name || "Unknown Raw Material";
+          } else if (item.item_type === 'packaging') {
+            const { data } = await supabase
+              .from("packaging_items")
+              .select("name")
+              .eq("id", item.item_id)
+              .maybeSingle();
+            name = data?.name || "Unknown Packaging";
           }
           
-          return `${name} (${item.quantity}) - ${item.item_type === 'finished_product' ? 'FG' : 'RM'}`;
+          return `${name} (${item.quantity}) - ${item.item_type === 'finished_product' ? 'FG' : item.item_type === 'raw_material' ? 'RM' : 'PK'}`;
         }));
         
         return {
@@ -138,6 +139,17 @@ const ProductionHistory = () => {
     },
   });
 
+  const { data: packagingItems } = useQuery({
+    queryKey: ["packagingItems"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("packaging_items")
+        .select("id, name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget as HTMLFormElement);
@@ -147,7 +159,8 @@ const ProductionHistory = () => {
       production_date: new Date().toISOString(),
       // Need to set a product_id even though we're handling multiple items
       // This is for compatibility with the existing database schema
-      product_id: batchItems[0].item_id || finishedProducts?.[0]?.id || rawMaterials?.[0]?.id
+      product_id: batchItems[0].item_type === "finished_product" ? batchItems[0].item_id : 
+                 (finishedProducts && finishedProducts.length > 0 ? finishedProducts[0].id : null)
     };
 
     try {
@@ -155,6 +168,10 @@ const ProductionHistory = () => {
       const invalidItems = batchItems.filter(item => !item.item_id);
       if (invalidItems.length > 0) {
         throw new Error("All batch items must have a selected product or material");
+      }
+
+      if (!data.product_id) {
+        throw new Error("No valid product ID found for the batch");
       }
 
       if (selectedBatch) {
@@ -261,11 +278,12 @@ const ProductionHistory = () => {
           console.error("Error fetching batch items:", error);
           setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
         } else if (data && data.length > 0) {
-          setBatchItems(data.map(item => ({
+          const batchItems = data.map(item => ({
             item_id: item.item_id,
-            item_type: item.item_type,
+            item_type: item.item_type as "finished_product" | "raw_material" | "packaging",
             quantity: item.quantity,
-          })));
+          }));
+          setBatchItems(batchItems);
         } else {
           setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
         }

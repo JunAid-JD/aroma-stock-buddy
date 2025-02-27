@@ -5,12 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-interface BatchItem {
-  item_id: string;
-  item_type: "raw_material" | "finished_product";
-  quantity: number;
-}
+import { BatchItem } from "./BatchForm";
 
 interface BatchItemsListProps {
   items: BatchItem[];
@@ -19,8 +14,8 @@ interface BatchItemsListProps {
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
   onUpdateItem: (index: number, field: keyof BatchItem, value: any) => void;
-  selectedType: "finished_product" | "raw_material";
-  setSelectedType: (type: "finished_product" | "raw_material") => void;
+  selectedType: "finished_product" | "raw_material" | "packaging";
+  setSelectedType: (type: "finished_product" | "raw_material" | "packaging") => void;
 }
 
 const BatchItemsList = ({ 
@@ -39,7 +34,7 @@ const BatchItemsList = ({
       {items.map((item, index) => (
         <div key={index} className="flex gap-2 items-end">
           <div className="flex-1">
-            <Tabs defaultValue={item.item_type} onValueChange={(value: "finished_product" | "raw_material") => {
+            <Tabs defaultValue={item.item_type} onValueChange={(value: "finished_product" | "raw_material" | "packaging") => {
               onUpdateItem(index, 'item_type', value);
               onUpdateItem(index, 'item_id', '');
               setSelectedType(value);

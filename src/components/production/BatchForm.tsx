@@ -7,9 +7,9 @@ import { DialogFooter } from "@/components/ui/dialog";
 import BatchItemsList from "./BatchItemsList";
 import { useState } from "react";
 
-interface BatchItem {
+export interface BatchItem {
   item_id: string;
-  item_type: "raw_material" | "finished_product";
+  item_type: "raw_material" | "finished_product" | "packaging";
   quantity: number;
 }
 
@@ -36,7 +36,7 @@ const BatchForm = ({
   onRemoveItem,
   onUpdateItem,
 }: BatchFormProps) => {
-  const [selectedType, setSelectedType] = useState<"finished_product" | "raw_material">("finished_product");
+  const [selectedType, setSelectedType] = useState<"finished_product" | "raw_material" | "packaging">("finished_product");
   
   return (
     <form onSubmit={onSubmit}>
