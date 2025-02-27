@@ -11,6 +11,7 @@ interface BatchItemsListProps {
   items: BatchItem[];
   finishedProducts: any[];
   rawMaterials: any[];
+  packagingItems: any[];
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
   onUpdateItem: (index: number, field: keyof BatchItem, value: any) => void;
@@ -22,6 +23,7 @@ const BatchItemsList = ({
   items, 
   finishedProducts, 
   rawMaterials, 
+  packagingItems,
   onAddItem, 
   onRemoveItem, 
   onUpdateItem,
@@ -39,9 +41,10 @@ const BatchItemsList = ({
               onUpdateItem(index, 'item_id', '');
               setSelectedType(value);
             }}>
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="finished_product">Finished Product</TabsTrigger>
                 <TabsTrigger value="raw_material">Raw Material</TabsTrigger>
+                <TabsTrigger value="packaging">Packaging</TabsTrigger>
               </TabsList>
               <TabsContent value="finished_product">
                 <Label htmlFor={`product_${index}`}>Finished Product</Label>
@@ -74,6 +77,24 @@ const BatchItemsList = ({
                     {rawMaterials?.map((material: any) => (
                       <SelectItem key={material.id} value={material.id}>
                         {material.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TabsContent>
+              <TabsContent value="packaging">
+                <Label htmlFor={`packaging_${index}`}>Packaging Item</Label>
+                <Select 
+                  value={item.item_id}
+                  onValueChange={(value) => onUpdateItem(index, 'item_id', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select packaging item" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {packagingItems?.map((item: any) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

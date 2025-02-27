@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import BatchForm, { BatchItem } from "@/components/production/BatchForm";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
@@ -157,10 +157,8 @@ const ProductionHistory = () => {
       status: formData.get("status") as string,
       notes: formData.get("notes") as string,
       production_date: new Date().toISOString(),
-      // Need to set a product_id even though we're handling multiple items
-      // This is for compatibility with the existing database schema
-      product_id: batchItems[0].item_type === "finished_product" ? batchItems[0].item_id : 
-                 (finishedProducts && finishedProducts.length > 0 ? finishedProducts[0].id : null)
+      // Get the first finished product as product_id for backward compatibility
+      product_id: getFirstFinishedProductId()
     };
 
     try {
@@ -251,6 +249,23 @@ const ProductionHistory = () => {
         variant: "destructive",
       });
     }
+  };
+
+  // Helper function to get the first finished product ID from the batch items or from available products
+  const getFirstFinishedProductId = () => {
+    // First try to find a finished product in the batch items
+    const finishedProductItem = batchItems.find(item => item.item_type === "finished_product");
+    if (finishedProductItem && finishedProductItem.item_id) {
+      return finishedProductItem.item_id;
+    }
+    
+    // If no finished product in batch items, use the first available finished product
+    if (finishedProducts && finishedProducts.length > 0) {
+      return finishedProducts[0].id;
+    }
+    
+    // Last resort
+    return null;
   };
 
   const handleClose = () => {
@@ -377,12 +392,16 @@ const ProductionHistory = () => {
             <DialogTitle>
               {selectedBatch ? "Edit" : "Add"} Production Batch
             </DialogTitle>
+            <DialogDescription>
+              Create a production batch with finished products, raw materials, or packaging items.
+            </DialogDescription>
           </DialogHeader>
           <BatchForm
             selectedBatch={selectedBatch}
             batchItems={batchItems}
             finishedProducts={finishedProducts || []}
             rawMaterials={rawMaterials || []}
+            packagingItems={packagingItems || []}
             onSubmit={handleSubmit}
             onClose={handleClose}
             onAddItem={addBatchItem}

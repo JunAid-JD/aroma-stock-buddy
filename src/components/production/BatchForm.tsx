@@ -18,6 +18,7 @@ interface BatchFormProps {
   batchItems: BatchItem[];
   finishedProducts: any[];
   rawMaterials: any[];
+  packagingItems: any[];
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
   onAddItem: () => void;
@@ -30,6 +31,7 @@ const BatchForm = ({
   batchItems,
   finishedProducts,
   rawMaterials,
+  packagingItems,
   onSubmit,
   onClose,
   onAddItem,
@@ -45,6 +47,7 @@ const BatchForm = ({
           items={batchItems}
           finishedProducts={finishedProducts}
           rawMaterials={rawMaterials}
+          packagingItems={packagingItems}
           onAddItem={onAddItem}
           onRemoveItem={onRemoveItem}
           onUpdateItem={onUpdateItem}
