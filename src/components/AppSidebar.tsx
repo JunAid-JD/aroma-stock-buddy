@@ -1,142 +1,85 @@
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { useMobile } from "@/hooks/use-mobile";
 import {
-  BarChart3,
-  Box,
-  Layers,
+  PackageOpen,
   Package,
-  ShoppingBag,
   ShoppingCart,
-  AlertTriangle,
   History,
-  Map,
+  Home,
+  FileBarChart,
+  AlertTriangle,
+  Link,
 } from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 
-interface SidebarItem {
-  title: string;
-  href: string;
-  icon: React.ReactNode;
-}
+export const menuItems = [
+  {
+    title: "Dashboard",
+    icon: Home,
+    link: "/",
+  },
+  {
+    title: "Finished Goods",
+    icon: PackageOpen,
+    link: "/finished-goods",
+  },
+  {
+    title: "Raw Materials",
+    icon: Package,
+    link: "/raw-materials",
+  },
+  {
+    title: "Packaging Goods",
+    icon: Package,
+    link: "/packaging-goods",
+  },
+  {
+    title: "Production History",
+    icon: History,
+    link: "/production-history",
+  },
+  {
+    title: "Purchase Records",
+    icon: ShoppingCart,
+    link: "/purchase-records",
+  },
+  {
+    title: "Loss Records",
+    icon: AlertTriangle,
+    link: "/loss-records",
+  },
+  {
+    title: "SKU Dependency Mapping",
+    icon: Link,
+    link: "/sku-dependency-mapping",
+  },
+];
 
-export function AppSidebar() {
-  const [isOpen, setIsOpen] = useState(true);
-  const isMobile = useMobile();
-  const location = useLocation();
-
-  const routes: SidebarItem[] = [
-    {
-      title: "Dashboard",
-      href: "/dashboard",
-      icon: <BarChart3 className="h-5 w-5" />,
-    },
-    {
-      title: "Raw Materials",
-      href: "/raw-materials",
-      icon: <Package className="h-5 w-5" />,
-    },
-    {
-      title: "Packaging Goods",
-      href: "/packaging-goods",
-      icon: <Box className="h-5 w-5" />,
-    },
-    {
-      title: "Finished Goods",
-      href: "/finished-goods",
-      icon: <Layers className="h-5 w-5" />,
-    },
-    {
-      title: "Production History",
-      href: "/production-history",
-      icon: <History className="h-5 w-5" />,
-    },
-    {
-      title: "Purchase Records",
-      href: "/purchase-records",
-      icon: <ShoppingCart className="h-5 w-5" />,
-    },
-    {
-      title: "Loss Records",
-      href: "/loss-records",
-      icon: <AlertTriangle className="h-5 w-5" />,
-    },
-    {
-      title: "SKU Dependency Mapping",
-      href: "/sku-dependency-mapping",
-      icon: <Map className="h-5 w-5" />,
-    },
-  ];
+export const AppSidebar = () => {
+  const isMobile = useIsMobile();
 
   return (
-    <div
-      data-state={isOpen ? "open" : "closed"}
-      className={`relative overflow-hidden border-r pt-14 transition-all duration-300 data-[state=closed]:w-16 md:data-[state=closed]:w-16 ${
-        isOpen ? "w-64" : "w-[70px]"
-      } h-full flex flex-col`}
-    >
-      <div className="flex h-[53px] items-center justify-center border-b">
-        <ShoppingBag className="h-6 w-6" />
-        {isOpen && (
-          <span className="ml-2 text-xl font-semibold">Inventory</span>
-        )}
+    <aside className="min-w-[240px] md:min-w-[280px] border-r h-screen overflow-y-auto">
+      <div className="p-6 space-y-6">
+        <div className="flex items-center space-x-3">
+          <FileBarChart className="h-8 w-8" />
+          <h1 className="text-xl font-bold">Inventory System</h1>
+        </div>
+        <nav className="space-y-1">
+          {menuItems.map((item) => (
+            <RouterLink
+              key={item.title}
+              to={item.link}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 hover:bg-gray-100"
+            >
+              <item.icon className="h-5 w-5" />
+              <span>{item.title}</span>
+            </RouterLink>
+          ))}
+        </nav>
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-2 overflow-auto">
-        {routes.map((route) => (
-          <Button
-            key={route.href}
-            variant="ghost"
-            className={cn(
-              "justify-start h-12",
-              location.pathname === route.href && "bg-muted",
-              !isOpen && "justify-center px-2 md:px-2"
-            )}
-            asChild
-          >
-            <Link to={route.href}>
-              {route.icon}
-              {isOpen && <span className="ml-2">{route.title}</span>}
-            </Link>
-          </Button>
-        ))}
-      </div>
-      <div className="p-4 flex justify-end border-t">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => {
-            if (!isMobile) {
-              setIsOpen(!isOpen);
-            }
-          }}
-          className="w-8 h-8"
-        >
-          <ChevronIcon
-            className={cn("transition-transform", !isOpen && "rotate-180")}
-          />
-        </Button>
-      </div>
-    </div>
+    </aside>
   );
-}
+};
 
-function ChevronIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  );
-}
+export default AppSidebar;

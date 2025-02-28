@@ -79,24 +79,43 @@ const FinishedGoods = () => {
 
   const handleSubmit = async (formData: any) => {
     try {
-      // First check if there's a dependency mapping for this SKU
-      const { data: depData, error: depError } = await supabase
-        .from("sku_dependencies")
-        .select("finished_product_name")
-        .eq("finished_product_sku", formData.sku)
-        .maybeSingle();
-
-      if (depError) {
-        console.error("Error checking dependency:", depError);
+      // Find product name if available through SKU dependency
+      let productName = formData.name || formData.sku;
+      
+      try {
+        // Check for product name in dependencies
+        const { data: depData } = await supabase
+          .from("sku_dependencies")
+          .select(`
+            finished_products(name, sku)
+          `)
+          .eq("finished_products.sku", formData.sku)
+          .maybeSingle();
+          
+        if (depData && depData.finished_products && depData.finished_products.name) {
+          productName = depData.finished_products.name;
+        } else {
+          // Create the product first if it doesn't exist in dependencies
+          const { data: existingFinishedProduct } = await supabase
+            .from("finished_products")
+            .select("id, name")
+            .eq("sku", formData.sku)
+            .maybeSingle();
+          
+          if (existingFinishedProduct) {
+            productName = existingFinishedProduct.name;
+          }
+        }
+      } catch (error) {
+        console.error("Error checking dependencies:", error);
       }
 
       const productData = {
-        name: depData?.finished_product_name || formData.name || formData.sku,
-        type: 'essential_oil' as const,
+        name: productName,
+        type: 'essential_oil',
         quantity_in_stock: formData.quantity_in_stock || 0,
         volume_config: formData.volume_config || 'essential_10ml',
         sku: formData.sku,
-        unit_price: 0, // Will be calculated by the database trigger
         reorder_point: formData.reorder_point || 10,
         updated_at: new Date().toISOString()
       };
@@ -147,9 +166,18 @@ const FinishedGoods = () => {
       const { error: batchItemsError } = await supabase
         .from("production_batch_items")
         .delete()
-        .eq("item_id", selectedItem.id);
+        .eq("item_id", selectedItem.id)
+        .eq("item_type", "finished_product");
       
       if (batchItemsError) throw batchItemsError;
+
+      // Delete dependencies
+      const { error: dependenciesError } = await supabase
+        .from("sku_dependencies")
+        .delete()
+        .eq("finished_product_id", selectedItem.id);
+      
+      if (dependenciesError) throw dependenciesError;
 
       // Finally delete the product
       const { error } = await supabase

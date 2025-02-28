@@ -43,9 +43,21 @@ const ProductionHistory = () => {
 
       if (error) throw error;
 
+      if (!batches || batches.length === 0) {
+        return [];
+      }
+
       // We need to fetch the names of the items
-      const batchesWithNames = await Promise.all((batches || []).map(async (batch) => {
-        const itemsWithNames = await Promise.all((batch.production_batch_items || []).map(async (item) => {
+      const batchesWithNames = await Promise.all(batches.map(async (batch) => {
+        // Handle case where production_batch_items is null
+        if (!batch.production_batch_items || batch.production_batch_items.length === 0) {
+          return {
+            ...batch,
+            items_summary: "No items"
+          };
+        }
+
+        const itemsWithNames = await Promise.all(batch.production_batch_items.map(async (item) => {
           let name = "Unknown";
           
           if (item.item_type === 'finished_product') {
@@ -144,7 +156,7 @@ const ProductionHistory = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("packaging_items")
-        .select("id, name");
+        .select("id, name, type");
       if (error) throw error;
       return data || [];
     },
@@ -363,6 +375,8 @@ const ProductionHistory = () => {
     setSelectedBatch(batch);
     setIsDeleteDialogOpen(true);
   };
+
+  console.log("Production batches:", productionBatches);
 
   return (
     <div className="space-y-6">

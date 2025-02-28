@@ -17,6 +17,7 @@ interface BatchItemsListProps {
   onUpdateItem: (index: number, field: keyof BatchItem, value: any) => void;
   selectedType: "finished_product" | "raw_material" | "packaging";
   setSelectedType: (type: "finished_product" | "raw_material" | "packaging") => void;
+  getItemNameById: (id: string, type: string) => string;
 }
 
 const BatchItemsList = ({ 
@@ -28,7 +29,8 @@ const BatchItemsList = ({
   onRemoveItem, 
   onUpdateItem,
   selectedType,
-  setSelectedType
+  setSelectedType,
+  getItemNameById
 }: BatchItemsListProps) => {
   return (
     <div className="space-y-4">

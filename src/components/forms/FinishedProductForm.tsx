@@ -26,28 +26,49 @@ const volumeOptions = [
 
 const FinishedProductForm = ({ formData, onChange }: FinishedProductFormProps) => {
   const [dependencyExists, setDependencyExists] = useState(false);
-  const [dependencyName, setDependencyName] = useState<string | null>(null);
+  const [productName, setProductName] = useState<string | null>(null);
 
   useEffect(() => {
     const checkDependency = async () => {
       if (formData.sku) {
-        const { data, error } = await supabase
-          .from("sku_dependencies")
-          .select("finished_product_name")
-          .eq("finished_product_sku", formData.sku)
-          .single();
-
-        if (error) {
+        try {
+          // First check if we can find a finished product by this SKU
+          const { data: existingProduct, error: productError } = await supabase
+            .from("finished_products")
+            .select("name")
+            .eq("sku", formData.sku)
+            .maybeSingle();
+            
+          if (existingProduct && !productError) {
+            setProductName(existingProduct.name);
+            onChange('name', existingProduct.name);
+            setDependencyExists(true);
+            return;
+          }
+          
+          // Check for dependencies in sku_dependencies table
+          const { data: dependencies, error: depsError } = await supabase
+            .from("sku_dependencies")
+            .select(`
+              id,
+              finished_product_id,
+              finished_products(name, sku)
+            `)
+            .eq("finished_products.sku", formData.sku)
+            .maybeSingle();
+          
+          if (!depsError && dependencies && dependencies.finished_products) {
+            setDependencyExists(true);
+            setProductName(dependencies.finished_products.name);
+            onChange('name', dependencies.finished_products.name);
+          } else {
+            setDependencyExists(false);
+            setProductName(null);
+          }
+        } catch (error) {
           console.error("Error checking dependency:", error);
           setDependencyExists(false);
-          setDependencyName(null);
-        } else if (data) {
-          setDependencyExists(true);
-          setDependencyName(data.finished_product_name);
-          onChange('name', data.finished_product_name);
-        } else {
-          setDependencyExists(false);
-          setDependencyName(null);
+          setProductName(null);
         }
       }
     };
@@ -68,7 +89,7 @@ const FinishedProductForm = ({ formData, onChange }: FinishedProductFormProps) =
         />
       </div>
 
-      {dependencyExists && dependencyName && (
+      {dependencyExists && productName && (
         <div className="rounded-md bg-green-50 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -78,7 +99,7 @@ const FinishedProductForm = ({ formData, onChange }: FinishedProductFormProps) =
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-green-800">
-                Dependency found: {dependencyName}
+                Dependency found: {productName}
               </p>
             </div>
           </div>

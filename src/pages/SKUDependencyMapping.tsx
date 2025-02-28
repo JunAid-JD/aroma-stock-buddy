@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
@@ -39,7 +39,7 @@ const SKUDependencyMapping = () => {
           quantity_required,
           item_type,
           updated_at,
-          finished_products(id, name),
+          finished_products(id, name, sku),
           raw_materials(id, name),
           packaging_items(id, name, type, size)
         `)
@@ -73,6 +73,28 @@ const SKUDependencyMapping = () => {
       });
     },
   });
+
+  // Listen for realtime updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sku_dependencies'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
+        }
+      )
+      .subscribe();   
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { data: finishedProducts } = useQuery({
     queryKey: ["finishedProducts"],
@@ -141,21 +163,26 @@ const SKUDependencyMapping = () => {
           .eq("id", selectedDependency.id);
         
         if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "Dependency updated successfully.",
+        });
       } else {
         const { error } = await supabase
           .from("sku_dependencies")
           .insert(data);
         
         if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "Dependency created successfully.",
+        });
       }
 
       await queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
-      
-      toast({
-        title: "Success",
-        description: `Dependency ${selectedDependency ? "updated" : "created"} successfully.`,
-      });
       
       setIsDialogOpen(false);
       setSelectedDependency(null);
