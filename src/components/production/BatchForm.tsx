@@ -41,7 +41,7 @@ const BatchForm = ({
   };
   
   return (
-    <form onSubmit={onSubmit}>
+    <form onSubmit={onSubmit} className="max-h-[80vh] overflow-y-auto">
       <div className="space-y-4">
         <div>
           <Label htmlFor="batch_id">Batch ID</Label>
@@ -50,6 +50,7 @@ const BatchForm = ({
             name="batch_id"
             defaultValue={selectedBatch?.batch_number || ""}
             placeholder="Enter a custom batch ID"
+            required
           />
         </div>
 

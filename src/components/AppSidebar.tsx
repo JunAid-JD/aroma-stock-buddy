@@ -8,6 +8,7 @@ import {
   FileBarChart,
   AlertTriangle,
   Link,
+  LogOut,
 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -77,6 +78,14 @@ export const AppSidebar = () => {
             </RouterLink>
           ))}
         </nav>
+        
+        <RouterLink
+          to="/logout"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 hover:bg-gray-100 mt-auto border-t pt-4"
+        >
+          <LogOut className="h-5 w-5" />
+          <span>Logout</span>
+        </RouterLink>
       </div>
     </aside>
   );
