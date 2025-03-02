@@ -37,8 +37,7 @@ const ProductionHistory = () => {
             quantity,
             item_type,
             item_id
-          ),
-          finished_products (name)
+          )
         `)
         .order("production_date", { ascending: false });
 
@@ -64,10 +63,10 @@ const ProductionHistory = () => {
           if (item.item_type === 'finished_product') {
             const { data } = await supabase
               .from("finished_products")
-              .select("name")
+              .select("name, sku")
               .eq("id", item.item_id)
               .maybeSingle();
-            name = data?.name || "Unknown Product";
+            name = data ? `${data.name} (${data.sku})` : "Unknown Product";
           }
           
           return `${name} (${item.quantity})`;
@@ -116,26 +115,53 @@ const ProductionHistory = () => {
     };
   }, [queryClient]);
 
+  // Query for finished products that exist in the SKU dependency mapping
   const { data: finishedProducts } = useQuery({
-    queryKey: ["finishedProducts"],
+    queryKey: ["skuDependencyFinishedProducts"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get all unique finished product IDs from sku_dependencies
+      const { data: dependencies, error: depsError } = await supabase
+        .from("sku_dependencies")
+        .select("finished_product_id")
+        .order("created_at", { ascending: false });
+      
+      if (depsError) throw depsError;
+      
+      if (!dependencies || dependencies.length === 0) {
+        // Fallback to all finished products if no dependencies exist
+        const { data: allProducts, error } = await supabase
+          .from("finished_products")
+          .select("id, name, sku");
+        
+        if (error) throw error;
+        return allProducts || [];
+      }
+      
+      // Get unique finished product IDs
+      const uniqueFpIds = [...new Set(dependencies.map(d => d.finished_product_id))];
+      
+      // Get product details for these IDs
+      const { data: products, error: productsError } = await supabase
         .from("finished_products")
-        .select("id, name, sku");
-      if (error) throw error;
-      return data || [];
+        .select("id, name, sku")
+        .in("id", uniqueFpIds);
+      
+      if (productsError) throw productsError;
+      return products || [];
     },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const customBatchId = formData.get("batch_id") as string;
     const data = {
       status: formData.get("status") as string,
       notes: formData.get("notes") as string,
       production_date: new Date().toISOString(),
       // Get the first finished product as product_id for backward compatibility
-      product_id: getFirstFinishedProductId()
+      product_id: getFirstFinishedProductId(),
+      batch_number: customBatchId && customBatchId.trim() !== "" ? customBatchId : undefined
     };
 
     try {

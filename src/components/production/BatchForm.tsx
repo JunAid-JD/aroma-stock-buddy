@@ -43,6 +43,16 @@ const BatchForm = ({
   return (
     <form onSubmit={onSubmit}>
       <div className="space-y-4">
+        <div>
+          <Label htmlFor="batch_id">Batch ID</Label>
+          <Input
+            id="batch_id"
+            name="batch_id"
+            defaultValue={selectedBatch?.batch_number || ""}
+            placeholder="Enter a custom batch ID"
+          />
+        </div>
+
         <div className="space-y-2">
           <Label>Batch Items</Label>
           {batchItems.map((item, index) => (
@@ -59,7 +69,7 @@ const BatchForm = ({
                   <SelectContent>
                     {finishedProducts?.map((product: any) => (
                       <SelectItem key={product.id} value={product.id}>
-                        {product.name}
+                        {product.name} ({product.sku})
                       </SelectItem>
                     ))}
                   </SelectContent>
