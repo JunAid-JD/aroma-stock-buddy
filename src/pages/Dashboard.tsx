@@ -53,6 +53,7 @@ const Dashboard = () => {
     queryKey: ["recentBatches"],
     queryFn: async () => {
       try {
+        // Fix the relationship error by explicitly specifying the foreign key relationship to use
         const { data, error } = await supabase
           .from("production_batches")
           .select(`
@@ -60,7 +61,7 @@ const Dashboard = () => {
             batch_number,
             status,
             created_at,
-            finished_products:product_id (name, sku)
+            finished_products:product_id(id, name, sku)
           `)
           .order("created_at", { ascending: false })
           .limit(5);
@@ -183,7 +184,9 @@ const Dashboard = () => {
                     <div>
                       <p className="font-medium">{batch.batch_number}</p>
                       <p className="text-sm text-gray-500">
-                        {batch.finished_products ? `${batch.finished_products.name || 'Unknown'} (${batch.finished_products.sku || 'Unknown'})` : 'Unknown product'}
+                        {batch.finished_products && batch.finished_products.id ? 
+                          `${batch.finished_products.name || 'Unknown'} (${batch.finished_products.sku || 'Unknown'})` : 
+                          'Unknown product'}
                       </p>
                     </div>
                     <div className={`px-2 py-1 text-xs rounded-full ${

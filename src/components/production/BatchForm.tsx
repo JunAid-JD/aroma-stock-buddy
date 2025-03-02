@@ -61,7 +61,7 @@ const BatchForm = ({
               <div className="flex-1">
                 <Label htmlFor={`product_${index}`}>Finished Product</Label>
                 <Select 
-                  value={item.item_id}
+                  value={item.item_id || ""}
                   onValueChange={(value) => onUpdateItem(index, 'item_id', value)}
                 >
                   <SelectTrigger>
@@ -82,7 +82,7 @@ const BatchForm = ({
                   id={`quantity_${index}`}
                   type="number"
                   value={item.quantity}
-                  onChange={(e) => onUpdateItem(index, 'quantity', parseInt(e.target.value))}
+                  onChange={(e) => onUpdateItem(index, 'quantity', parseInt(e.target.value) || 0)}
                   min="1"
                   required
                 />
@@ -132,7 +132,7 @@ const BatchForm = ({
           <Input
             id="notes"
             name="notes"
-            defaultValue={selectedBatch?.notes}
+            defaultValue={selectedBatch?.notes || ""}
           />
         </div>
       </div>
