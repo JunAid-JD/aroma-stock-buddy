@@ -165,7 +165,7 @@ const DependencyForm = ({ dependency, onSubmit, onClose }: DependencyFormProps) 
   };
 
   return (
-    <form onSubmit={handleSubmitForm}>
+    <form onSubmit={handleSubmitForm} className="max-h-[80vh] overflow-y-auto">
       <div className="space-y-4">
         <div>
           <Label htmlFor="fg_sku">Finished Product SKU</Label>

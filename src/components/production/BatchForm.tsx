@@ -36,7 +36,7 @@ const BatchForm = ({
 }: BatchFormProps) => {
   // Helper function to get finished product name by ID
   const getProductNameById = (id: string) => {
-    const product = finishedProducts.find(p => p.id === id);
+    const product = finishedProducts?.find(p => p.id === id);
     return product ? product.name : "Unknown product";
   };
   

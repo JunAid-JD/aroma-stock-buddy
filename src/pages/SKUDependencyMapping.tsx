@@ -146,35 +146,28 @@ const SKUDependencyMapping = () => {
     try {
       console.log("Form data submitted:", formData);
 
-      // First, check if there's an existing finished product with this SKU
       let finishedProductId = formData.finished_product_id;
       
       if (!finishedProductId && formData.fg_sku) {
-        // Check if a finished product with this SKU already exists
-        const { data: existingProduct } = await supabase
+        // Create a new finished product
+        const { data: newProduct, error: productError } = await supabase
           .from("finished_products")
-          .select("id")
-          .eq("sku", formData.fg_sku)
-          .maybeSingle();
+          .insert({
+            sku: formData.fg_sku,
+            name: formData.fg_sku, // Using SKU as name for now
+            quantity_in_stock: 0,
+            unit_price: 0
+          })
+          .select()
+          .single();
 
-        if (existingProduct) {
-          finishedProductId = existingProduct.id;
-        } else {
-          // Create a new finished product
-          const { data: newProduct, error: productError } = await supabase
-            .from("finished_products")
-            .insert({
-              sku: formData.fg_sku,
-              name: formData.fg_sku, // Using SKU as name for now
-              quantity_in_stock: 0,
-              unit_price: 0
-            })
-            .select()
-            .single();
-
-          if (productError) throw productError;
-          finishedProductId = newProduct.id;
+        if (productError) {
+          console.error("Error creating finished product:", productError);
+          throw productError;
         }
+        
+        finishedProductId = newProduct.id;
+        console.log("Created new finished product with ID:", finishedProductId);
       }
 
       if (!finishedProductId) {
@@ -201,11 +194,15 @@ const SKUDependencyMapping = () => {
           packaging_item_id: null
         }));
 
+        console.log("Inserting raw material dependencies:", rawMaterialDeps);
         const { error: rmError } = await supabase
           .from("sku_dependencies")
           .insert(rawMaterialDeps);
 
-        if (rmError) throw rmError;
+        if (rmError) {
+          console.error("Error inserting raw material dependencies:", rmError);
+          throw rmError;
+        }
       }
 
       // Insert new dependencies for packaging items
@@ -218,11 +215,15 @@ const SKUDependencyMapping = () => {
           raw_material_id: null
         }));
 
+        console.log("Inserting packaging dependencies:", packagingDeps);
         const { error: pkgError } = await supabase
           .from("sku_dependencies")
           .insert(packagingDeps);
 
-        if (pkgError) throw pkgError;
+        if (pkgError) {
+          console.error("Error inserting packaging dependencies:", pkgError);
+          throw pkgError;
+        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
