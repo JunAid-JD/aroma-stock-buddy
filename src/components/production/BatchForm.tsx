@@ -4,12 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
-import BatchItemsList from "./BatchItemsList";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
 export interface BatchItem {
   item_id: string;
-  item_type: "raw_material" | "finished_product" | "packaging";
+  item_type: "finished_product";
   quantity: number;
 }
 
@@ -17,8 +17,6 @@ interface BatchFormProps {
   selectedBatch: any;
   batchItems: BatchItem[];
   finishedProducts: any[];
-  rawMaterials: any[];
-  packagingItems: any[];
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
   onAddItem: () => void;
@@ -30,46 +28,76 @@ const BatchForm = ({
   selectedBatch,
   batchItems,
   finishedProducts,
-  rawMaterials,
-  packagingItems,
   onSubmit,
   onClose,
   onAddItem,
   onRemoveItem,
   onUpdateItem,
 }: BatchFormProps) => {
-  const [selectedType, setSelectedType] = useState<"finished_product" | "raw_material" | "packaging">("finished_product");
-  
-  // Helper function to get item name by ID and type
-  const getItemNameById = (id: string, type: string) => {
-    if (type === "finished_product") {
-      const product = finishedProducts.find(p => p.id === id);
-      return product ? product.name : "Unknown product";
-    } else if (type === "raw_material") {
-      const material = rawMaterials.find(m => m.id === id);
-      return material ? material.name : "Unknown material";
-    } else if (type === "packaging") {
-      const packaging = packagingItems.find(p => p.id === id);
-      return packaging ? `${packaging.name} (${packaging.type})` : "Unknown packaging";
-    }
-    return "Unknown item";
+  // Helper function to get finished product name by ID
+  const getProductNameById = (id: string) => {
+    const product = finishedProducts.find(p => p.id === id);
+    return product ? product.name : "Unknown product";
   };
   
   return (
     <form onSubmit={onSubmit}>
       <div className="space-y-4">
-        <BatchItemsList
-          items={batchItems}
-          finishedProducts={finishedProducts}
-          rawMaterials={rawMaterials}
-          packagingItems={packagingItems}
-          onAddItem={onAddItem}
-          onRemoveItem={onRemoveItem}
-          onUpdateItem={onUpdateItem}
-          selectedType={selectedType}
-          setSelectedType={setSelectedType}
-          getItemNameById={getItemNameById}
-        />
+        <div className="space-y-2">
+          <Label>Batch Items</Label>
+          {batchItems.map((item, index) => (
+            <div key={index} className="flex gap-2 items-end border p-4 rounded-md">
+              <div className="flex-1">
+                <Label htmlFor={`product_${index}`}>Finished Product</Label>
+                <Select 
+                  value={item.item_id}
+                  onValueChange={(value) => onUpdateItem(index, 'item_id', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {finishedProducts?.map((product: any) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-32">
+                <Label htmlFor={`quantity_${index}`}>Quantity</Label>
+                <Input
+                  id={`quantity_${index}`}
+                  type="number"
+                  value={item.quantity}
+                  onChange={(e) => onUpdateItem(index, 'quantity', parseInt(e.target.value))}
+                  min="1"
+                  required
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="mb-0.5"
+                onClick={() => onRemoveItem(index)}
+                disabled={batchItems.length <= 1}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onAddItem}
+            className="w-full"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Item
+          </Button>
+        </div>
 
         <div>
           <Label htmlFor="status">Status</Label>

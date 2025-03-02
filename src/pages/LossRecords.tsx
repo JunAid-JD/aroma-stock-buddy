@@ -98,42 +98,6 @@ const LossRecords = () => {
     };
   }, [queryClient]);
 
-  const handleDeleteClick = (record: any) => {
-    setSelectedRecord(record);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleDelete = async () => {
-    if (!selectedRecord) return;
-
-    try {
-      const { error } = await supabase
-        .from("loss_records")
-        .delete()
-        .eq("id", selectedRecord.id);
-      
-      if (error) throw error;
-
-      await queryClient.invalidateQueries({ queryKey: ["lossRecords"] });
-      await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
-      await queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
-      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
-      
-      toast({
-        title: "Success",
-        description: "Record deleted successfully.",
-      });
-      setIsDeleteDialogOpen(false);
-      setSelectedRecord(null);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete record.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const { data: items } = useQuery({
     queryKey: ["allItems"],
     queryFn: async () => {
@@ -199,6 +163,42 @@ const LossRecords = () => {
     }
   };
 
+  const handleDeleteClick = (record: any) => {
+    setSelectedRecord(record);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedRecord) return;
+
+    try {
+      const { error } = await supabase
+        .from("loss_records")
+        .delete()
+        .eq("id", selectedRecord.id);
+      
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["lossRecords"] });
+      await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+      await queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
+      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      
+      toast({
+        title: "Success",
+        description: "Record deleted successfully.",
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedRecord(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete record.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
@@ -217,12 +217,12 @@ const LossRecords = () => {
         <DataTable
           data={lossRecords || []}
           columns={columns}
-          onEditClick={(record) => {
+          onEdit={(record) => {
             setSelectedRecord(record);
             setSelectedItemType(record.item_type);
             setIsDialogOpen(true);
           }}
-          onDeleteClick={handleDeleteClick}
+          onDelete={handleDeleteClick}
         />
       )}
 

@@ -5,25 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import ItemFormDialog from "@/components/ItemFormDialog";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import ItemFormDialog from "@/components/ItemFormDialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 
 const columns = [
-  { key: "sku", label: "SKU" },
   { key: "name", label: "Name" },
-  { key: "type", label: "Type" },
-  { key: "quantity_in_stock", label: "Stock" },
+  { key: "sku", label: "SKU" },
   { key: "volume_config", label: "Volume" },
+  { key: "quantity_in_stock", label: "Quantity in Stock" },
   { key: "unit_price", label: "Unit Price" },
   { key: "total_value", label: "Total Value" },
   { key: "updated_at", label: "Last Updated", isDate: true },
@@ -31,8 +21,8 @@ const columns = [
 
 const FinishedGoods = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -46,11 +36,10 @@ const FinishedGoods = () => {
       
       if (error) throw error;
       
-      return data.map(item => ({
-        ...item,
-        total_value: item.total_value ? `Rs. ${item.total_value.toFixed(2)}` : 'Rs. 0.00',
-        unit_price: item.unit_price ? `Rs. ${item.unit_price.toFixed(2)}` : 'Rs. 0.00',
-        volume_config: item.volume_config.replace(/_/g, ' ').replace(/(\w+)/, (s) => s.charAt(0).toUpperCase() + s.slice(1))
+      return data.map(product => ({
+        ...product,
+        unit_price: `Rs. ${product.unit_price.toFixed(2)}`,
+        total_value: product.total_value ? `Rs. ${product.total_value.toFixed(2)}` : 'N/A'
       }));
     },
   });
@@ -77,71 +66,58 @@ const FinishedGoods = () => {
     };
   }, [queryClient]);
 
-  const handleSubmit = async (formData: any) => {
+  const handleAddItem = () => {
+    setSelectedItem(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleEditItem = (item: any) => {
+    setSelectedItem(item);
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = async (data: any) => {
     try {
-      // Find product name if available through SKU dependency
-      let productName = formData.name || formData.sku;
+      const { sku, name, volume_config, quantity_in_stock, reorder_point } = data;
       
-      try {
-        // Check for product name in dependencies
-        const { data: depData } = await supabase
-          .from("sku_dependencies")
-          .select(`
-            finished_products(name, sku)
-          `)
-          .eq("finished_products.sku", formData.sku)
-          .maybeSingle();
-          
-        if (depData && depData.finished_products && depData.finished_products.name) {
-          productName = depData.finished_products.name;
-        } else {
-          // Create the product first if it doesn't exist in dependencies
-          const { data: existingFinishedProduct } = await supabase
-            .from("finished_products")
-            .select("id, name")
-            .eq("sku", formData.sku)
-            .maybeSingle();
-          
-          if (existingFinishedProduct) {
-            productName = existingFinishedProduct.name;
-          }
-        }
-      } catch (error) {
-        console.error("Error checking dependencies:", error);
-      }
-
-      const productData = {
-        name: productName,
-        type: 'essential_oil',
-        quantity_in_stock: formData.quantity_in_stock || 0,
-        volume_config: formData.volume_config || 'essential_10ml',
-        sku: formData.sku,
-        reorder_point: formData.reorder_point || 10,
-        updated_at: new Date().toISOString()
-      };
-
+      // Always set the type correctly based on volume_config
+      const productType = volume_config.startsWith('essential') ? 'essential_oil' : 'carrier_oil';
+      
       if (selectedItem) {
-        const { error } = await supabase
+        await supabase
           .from("finished_products")
-          .update(productData)
+          .update({
+            name,
+            type: productType,
+            quantity_in_stock,
+            volume_config,
+            sku,
+            reorder_point,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", selectedItem.id);
-        if (error) throw error;
       } else {
-        const { error } = await supabase
+        await supabase
           .from("finished_products")
-          .insert(productData);
-        if (error) throw error;
+          .insert({
+            name,
+            type: productType,
+            quantity_in_stock,
+            volume_config,
+            sku,
+            reorder_point,
+            updated_at: new Date().toISOString(),
+          });
       }
 
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      
       toast({
         title: "Success",
-        description: `Item ${selectedItem ? "updated" : "created"} successfully.`,
+        description: `Product ${selectedItem ? "updated" : "added"} successfully.`,
       });
-      setIsDialogOpen(false);
-      setSelectedItem(null);
     } catch (error: any) {
-      console.error('Error:', error);
+      console.error("Error:", error);
       toast({
         title: "Error",
         description: error.message || "Something went wrong. Please try again.",
@@ -150,36 +126,15 @@ const FinishedGoods = () => {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteItem = (item: any) => {
+    setSelectedItem(item);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     if (!selectedItem) return;
 
     try {
-      // First, delete product components
-      const { error: componentsError } = await supabase
-        .from("product_components")
-        .delete()
-        .eq("finished_product_id", selectedItem.id);
-      
-      if (componentsError) throw componentsError;
-
-      // Then delete production batch items
-      const { error: batchItemsError } = await supabase
-        .from("production_batch_items")
-        .delete()
-        .eq("item_id", selectedItem.id)
-        .eq("item_type", "finished_product");
-      
-      if (batchItemsError) throw batchItemsError;
-
-      // Delete dependencies
-      const { error: dependenciesError } = await supabase
-        .from("sku_dependencies")
-        .delete()
-        .eq("finished_product_id", selectedItem.id);
-      
-      if (dependenciesError) throw dependenciesError;
-
-      // Finally delete the product
       const { error } = await supabase
         .from("finished_products")
         .delete()
@@ -188,34 +143,21 @@ const FinishedGoods = () => {
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      
       toast({
         title: "Success",
-        description: "Item deleted successfully.",
+        description: "Product deleted successfully.",
       });
+      
       setIsDeleteDialogOpen(false);
       setSelectedItem(null);
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete item.",
+        description: error.message || "Failed to delete product.",
         variant: "destructive",
       });
     }
-  };
-
-  const handleAdd = () => {
-    setSelectedItem(null);
-    setIsDialogOpen(true);
-  };
-
-  const handleEdit = (item: any) => {
-    setSelectedItem(item);
-    setIsDialogOpen(true);
-  };
-
-  const handleDeleteClick = (item: any) => {
-    setSelectedItem(item);
-    setIsDeleteDialogOpen(true);
   };
 
   return (
@@ -224,45 +166,46 @@ const FinishedGoods = () => {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Finished Goods</h2>
           <p className="text-muted-foreground">
-            Manage your finished products inventory
+            Manage your finished oil products
           </p>
         </div>
-        <Button onClick={handleAdd}>
+        <Button onClick={handleAddItem}>
           <Plus className="mr-2 h-4 w-4" />
-          Add Finished Product
+          Add Product
         </Button>
       </div>
-      <DataTable
-        columns={columns}
-        data={finishedProducts || []}
+      <DataTable 
+        columns={columns} 
+        data={finishedProducts || []} 
         isLoading={isLoading}
-        onEdit={handleEdit}
-        onDelete={handleDeleteClick}
+        onEdit={handleEditItem}
+        onDelete={handleDeleteItem}
       />
+
       <ItemFormDialog
         isOpen={isDialogOpen}
-        onClose={() => {
-          setIsDialogOpen(false);
-          setSelectedItem(null);
-        }}
+        onClose={() => setIsDialogOpen(false)}
         onSubmit={handleSubmit}
         item={selectedItem}
         type="finished"
       />
+
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the finished product
-              and all associated records.
+              This action cannot be undone. This will permanently delete the product.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-500 hover:bg-red-600"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

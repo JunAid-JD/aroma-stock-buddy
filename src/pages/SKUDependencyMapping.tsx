@@ -4,20 +4,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Trash, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const columns = [
   { key: "finished_product_name", label: "Finished Product" },
-  { key: "component_type", label: "Component Type" },
-  { key: "component_name", label: "Component Name" },
-  { key: "quantity_required", label: "Quantity Required" },
+  { key: "finished_product_sku", label: "SKU" },
+  { key: "components_summary", label: "Components" },
   { key: "updated_at", label: "Last Updated", isDate: true },
 ];
 
@@ -25,7 +23,15 @@ const SKUDependencyMapping = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedDependency, setSelectedDependency] = useState<any>(null);
-  const [selectedTab, setSelectedTab] = useState<'raw_material' | 'packaging'>('raw_material');
+  const [newFinishedProductSku, setNewFinishedProductSku] = useState("");
+  const [newFinishedProductName, setNewFinishedProductName] = useState("");
+  const [selectedFinishedProduct, setSelectedFinishedProduct] = useState<string | null>(null);
+  const [components, setComponents] = useState<Array<{
+    id: string;
+    type: "raw_material" | "packaging";
+    item_id: string;
+    quantity_required: number;
+  }>>([]);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -40,37 +46,57 @@ const SKUDependencyMapping = () => {
           item_type,
           updated_at,
           finished_products(id, name, sku),
-          raw_materials(id, name),
-          packaging_items(id, name, type, size)
+          raw_materials(id, name, sku),
+          packaging_items(id, name, type, size, sku)
         `)
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
 
-      return data.map((dep) => {
-        const finishedProduct = dep.finished_products;
-        const rawMaterial = dep.raw_materials;
-        const packagingItem = dep.packaging_items;
+      // Group dependencies by finished product
+      const groupedDeps = data.reduce((acc: any, dep) => {
+        const finishedProductId = dep.finished_products?.id;
+        if (!finishedProductId) return acc;
         
-        let componentName = 'Unknown';
-        let componentType = dep.item_type;
-        
-        if (dep.item_type === 'raw_material' && rawMaterial) {
-          componentName = rawMaterial.name;
-        } else if (dep.item_type === 'packaging' && packagingItem) {
-          componentName = `${packagingItem.name} (${packagingItem.type} - ${packagingItem.size})`;
+        if (!acc[finishedProductId]) {
+          acc[finishedProductId] = {
+            id: finishedProductId,
+            finished_product_name: dep.finished_products?.name || 'Unknown Product',
+            finished_product_sku: dep.finished_products?.sku || 'Unknown SKU',
+            components: [],
+            updated_at: dep.updated_at
+          };
         }
         
-        return {
-          ...dep,
-          finished_product_name: finishedProduct?.name || 'Unknown Product',
-          component_type: componentType === 'raw_material' ? 'Raw Material' : 'Packaging',
-          component_name: componentName,
-          finished_product_id: finishedProduct?.id,
-          raw_material_id: rawMaterial?.id,
-          packaging_item_id: packagingItem?.id,
-        };
-      });
+        // Add component info
+        if (dep.item_type === 'raw_material' && dep.raw_materials) {
+          acc[finishedProductId].components.push({
+            id: dep.id,
+            type: 'raw_material',
+            name: dep.raw_materials.name,
+            sku: dep.raw_materials.sku,
+            quantity: dep.quantity_required
+          });
+        } else if (dep.item_type === 'packaging' && dep.packaging_items) {
+          acc[finishedProductId].components.push({
+            id: dep.id,
+            type: 'packaging',
+            name: `${dep.packaging_items.name} (${dep.packaging_items.type} - ${dep.packaging_items.size})`,
+            sku: dep.packaging_items.sku,
+            quantity: dep.quantity_required
+          });
+        }
+        
+        return acc;
+      }, {});
+      
+      // Convert to array and add components summary
+      return Object.values(groupedDeps).map((item: any) => ({
+        ...item,
+        components_summary: item.components.map((comp: any) => 
+          `${comp.name} (${comp.sku}) x${comp.quantity}`
+        ).join(", ")
+      }));
     },
   });
 
@@ -134,58 +160,97 @@ const SKUDependencyMapping = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget as HTMLFormElement);
     
     try {
-      const itemType = formData.get("item_type") as "raw_material" | "packaging";
-      const finishedProductId = formData.get("finished_product_id") as string;
-      const quantityRequired = parseFloat(formData.get("quantity_required") as string) || 1;
+      let finishedProductId = selectedFinishedProduct;
       
-      let data: any = {
-        finished_product_id: finishedProductId,
-        item_type: itemType,
-        quantity_required: quantityRequired
-      };
-      
-      // Add the appropriate component ID based on the item type
-      if (itemType === 'raw_material') {
-        data.raw_material_id = formData.get("component_id") as string;
-        data.packaging_item_id = null;
-      } else if (itemType === 'packaging') {
-        data.packaging_item_id = formData.get("component_id") as string;
-        data.raw_material_id = null;
+      // If creating new finished product
+      if (!finishedProductId && newFinishedProductSku) {
+        const { data: existingProduct, error: checkError } = await supabase
+          .from("finished_products")
+          .select("id")
+          .eq("sku", newFinishedProductSku)
+          .maybeSingle();
+          
+        if (checkError) throw checkError;
+        
+        if (existingProduct) {
+          finishedProductId = existingProduct.id;
+        } else {
+          // Create new finished product entry
+          const { data: newProduct, error: insertError } = await supabase
+            .from("finished_products")
+            .insert({
+              name: newFinishedProductName || `Product ${newFinishedProductSku}`,
+              sku: newFinishedProductSku,
+              type: "essential_oil" // Default type
+            })
+            .select('id')
+            .single();
+            
+          if (insertError) throw insertError;
+          finishedProductId = newProduct.id;
+        }
       }
-
+      
+      if (!finishedProductId) {
+        throw new Error("No finished product selected or created");
+      }
+      
+      // Handle components
+      if (components.length === 0) {
+        throw new Error("Please add at least one component");
+      }
+      
       if (selectedDependency) {
-        const { error } = await supabase
+        // First delete existing dependencies
+        const { error: deleteError } = await supabase
           .from("sku_dependencies")
-          .update(data)
-          .eq("id", selectedDependency.id);
+          .delete()
+          .eq("finished_product_id", finishedProductId);
         
-        if (error) throw error;
-
-        toast({
-          title: "Success",
-          description: "Dependency updated successfully.",
-        });
-      } else {
-        const { error } = await supabase
-          .from("sku_dependencies")
-          .insert(data);
-        
-        if (error) throw error;
-
-        toast({
-          title: "Success",
-          description: "Dependency created successfully.",
-        });
+        if (deleteError) throw deleteError;
       }
+      
+      // Insert new dependencies
+      const dependencyItems = components.map(comp => {
+        const baseData = {
+          finished_product_id: finishedProductId,
+          item_type: comp.type,
+          quantity_required: comp.quantity_required
+        };
+        
+        if (comp.type === 'raw_material') {
+          return {
+            ...baseData,
+            raw_material_id: comp.item_id,
+            packaging_item_id: null
+          };
+        } else {
+          return {
+            ...baseData,
+            packaging_item_id: comp.item_id,
+            raw_material_id: null
+          };
+        }
+      });
+      
+      const { error: insertError } = await supabase
+        .from("sku_dependencies")
+        .insert(dependencyItems);
+      
+      if (insertError) throw insertError;
 
       await queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
       
+      toast({
+        title: "Success",
+        description: selectedDependency ? "Dependencies updated successfully." : "Dependencies created successfully.",
+      });
+      
       setIsDialogOpen(false);
-      setSelectedDependency(null);
+      resetForm();
     } catch (error: any) {
       console.error("Error:", error);
       toast({
@@ -203,7 +268,7 @@ const SKUDependencyMapping = () => {
       const { error } = await supabase
         .from("sku_dependencies")
         .delete()
-        .eq("id", selectedDependency.id);
+        .eq("finished_product_id", selectedDependency.id);
       
       if (error) throw error;
 
@@ -212,7 +277,7 @@ const SKUDependencyMapping = () => {
       
       toast({
         title: "Success",
-        description: "Dependency deleted successfully.",
+        description: "Dependencies deleted successfully.",
       });
       
       setIsDeleteDialogOpen(false);
@@ -220,20 +285,65 @@ const SKUDependencyMapping = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete dependency.",
+        description: error.message || "Failed to delete dependencies.",
         variant: "destructive",
       });
     }
   };
 
-  const handleAdd = () => {
+  const handleAddComponent = () => {
+    setComponents([
+      ...components, 
+      {
+        id: crypto.randomUUID(),
+        type: "raw_material",
+        item_id: "",
+        quantity_required: 1
+      }
+    ]);
+  };
+
+  const handleRemoveComponent = (id: string) => {
+    setComponents(components.filter(comp => comp.id !== id));
+  };
+
+  const handleUpdateComponent = (id: string, field: keyof typeof components[0], value: any) => {
+    setComponents(components.map(comp => 
+      comp.id === id ? { ...comp, [field]: value } : comp
+    ));
+  };
+
+  const resetForm = () => {
     setSelectedDependency(null);
+    setSelectedFinishedProduct(null);
+    setNewFinishedProductSku("");
+    setNewFinishedProductName("");
+    setComponents([{
+      id: crypto.randomUUID(),
+      type: "raw_material",
+      item_id: "",
+      quantity_required: 1
+    }]);
+  };
+
+  const handleAdd = () => {
+    resetForm();
     setIsDialogOpen(true);
   };
 
   const handleEdit = (item: any) => {
     setSelectedDependency(item);
-    setSelectedTab(item.item_type);
+    setSelectedFinishedProduct(item.id);
+    
+    // Convert components to expected format
+    const formattedComponents = item.components.map((comp: any) => ({
+      id: crypto.randomUUID(),
+      type: comp.type as "raw_material" | "packaging",
+      item_id: comp.id,
+      quantity_required: comp.quantity
+    }));
+    
+    setComponents(formattedComponents);
     setIsDialogOpen(true);
   };
 
@@ -265,128 +375,197 @@ const SKUDependencyMapping = () => {
       />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedDependency ? "Edit" : "Add"} Component Dependency
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="finished_product_id">Finished Product</Label>
-                <Select
-                  name="finished_product_id"
-                  defaultValue={selectedDependency?.finished_product_id}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a finished product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {finishedProducts?.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
-                      </SelectItem>
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="finished_product">Finished Product</Label>
+                  {selectedDependency ? (
+                    <Select
+                      name="finished_product_id"
+                      value={selectedFinishedProduct || ""}
+                      onValueChange={setSelectedFinishedProduct}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a finished product" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {finishedProducts?.map((product) => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.name} ({product.sku})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="new_sku">SKU</Label>
+                        <Input
+                          id="new_sku"
+                          value={newFinishedProductSku}
+                          onChange={(e) => setNewFinishedProductSku(e.target.value)}
+                          placeholder="Enter product SKU"
+                          required={!selectedFinishedProduct}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="new_name">Name</Label>
+                        <Input
+                          id="new_name"
+                          value={newFinishedProductName}
+                          onChange={(e) => setNewFinishedProductName(e.target.value)}
+                          placeholder="Enter product name"
+                          required={!selectedFinishedProduct && newFinishedProductSku !== ""}
+                        />
+                      </div>
+                      <div className="flex items-center">
+                        <div className="h-px flex-1 bg-gray-200"></div>
+                        <span className="px-2 text-sm text-gray-500">OR</span>
+                        <div className="h-px flex-1 bg-gray-200"></div>
+                      </div>
+                      <div>
+                        <Label>Select Existing Product</Label>
+                        <Select
+                          value={selectedFinishedProduct || ""}
+                          onValueChange={setSelectedFinishedProduct}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a finished product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {finishedProducts?.map((product) => (
+                              <SelectItem key={product.id} value={product.id}>
+                                {product.name} ({product.sku})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-lg font-medium">Components</Label>
+                  <div className="space-y-4">
+                    {components.map((component, index) => (
+                      <div key={component.id} className="p-4 border rounded-md bg-gray-50">
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="font-medium">Component #{index + 1}</h4>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveComponent(component.id)}
+                            disabled={components.length <= 1}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <Label>Component Type</Label>
+                            <Select
+                              value={component.type}
+                              onValueChange={(value: "raw_material" | "packaging") => 
+                                handleUpdateComponent(component.id, 'type', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select component type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="raw_material">Raw Material</SelectItem>
+                                <SelectItem value="packaging">Packaging</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <Label>Component</Label>
+                            <Select
+                              value={component.item_id}
+                              onValueChange={(value) => 
+                                handleUpdateComponent(component.id, 'item_id', value)}
+                              required
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select component" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {component.type === "raw_material" ? 
+                                  rawMaterials?.map((item) => (
+                                    <SelectItem key={item.id} value={item.id}>
+                                      {item.name} ({item.sku})
+                                    </SelectItem>
+                                  )) :
+                                  packagingItems?.map((item) => (
+                                    <SelectItem key={item.id} value={item.id}>
+                                      {item.name} - {item.type} {item.size} ({item.sku})
+                                    </SelectItem>
+                                  ))
+                                }
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <Label>Quantity Required</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={component.quantity_required}
+                              onChange={(e) => 
+                                handleUpdateComponent(
+                                  component.id, 
+                                  'quantity_required', 
+                                  parseFloat(e.target.value) || 1
+                                )
+                              }
+                              required
+                            />
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAddComponent}
+                      className="w-full"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Component
+                    </Button>
+                  </div>
+                </div>
               </div>
 
-              <Tabs 
-                defaultValue={selectedDependency?.item_type || "raw_material"} 
-                value={selectedTab}
-                onValueChange={(value) => setSelectedTab(value as 'raw_material' | 'packaging')}
-              >
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="raw_material">Raw Material</TabsTrigger>
-                  <TabsTrigger value="packaging">Packaging</TabsTrigger>
-                </TabsList>
-                
-                <input
-                  type="hidden"
-                  name="item_type"
-                  value={selectedTab}
-                />
-                
-                <TabsContent value="raw_material">
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="component_id">Raw Material</Label>
-                      <Select
-                        name="component_id"
-                        defaultValue={selectedDependency?.raw_material_id}
-                        required
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a raw material" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {rawMaterials?.map((material) => (
-                            <SelectItem key={material.id} value={material.id}>
-                              {material.name} ({material.sku})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="packaging">
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="component_id">Packaging Item</Label>
-                      <Select
-                        name="component_id"
-                        defaultValue={selectedDependency?.packaging_item_id}
-                        required
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a packaging item" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {packagingItems?.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.name} - {item.type} {item.size} ({item.sku})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-
-              <div>
-                <Label htmlFor="quantity_required">Quantity Required</Label>
-                <Input
-                  id="quantity_required"
-                  name="quantity_required"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  defaultValue={selectedDependency?.quantity_required || 1}
-                  required
-                />
-              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsDialogOpen(false);
+                    resetForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {selectedDependency ? "Update" : "Create"}
+                </Button>
+              </DialogFooter>
             </div>
-
-            <DialogFooter className="mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsDialogOpen(false);
-                  setSelectedDependency(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">
-                {selectedDependency ? "Update" : "Create"}
-              </Button>
-            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -396,7 +575,7 @@ const SKUDependencyMapping = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the component dependency.
+              This action cannot be undone. This will permanently delete the component dependencies.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

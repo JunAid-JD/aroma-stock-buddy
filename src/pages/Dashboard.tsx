@@ -1,131 +1,182 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, ShoppingBag, Box, AlertTriangle } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { format } from "date-fns";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { parseISO, format } from 'date-fns';
 
-const Dashboard = () => {
-  const { data: stats } = useQuery({
-    queryKey: ["dashboardStats"],
-    queryFn: async () => {
-      const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
-        supabase
-          .from("raw_materials")
-          .select("total_value"),
-        supabase
-          .from("packaging_items")
-          .select("total_value"),
-        supabase
-          .from("finished_products")
-          .select("total_value")
-      ]);
-
-      const calculateTotal = (data: any[]) => 
-        data?.reduce((acc, item) => acc + (item.total_value || 0), 0) || 0;
-
-      const rawValue = calculateTotal(rawMaterials.data);
-      const packagingValue = calculateTotal(packagingItems.data);
-      const finishedValue = calculateTotal(finishedProducts.data);
-
-      return {
-        rawMaterialsValue: rawValue,
-        packagingItemsValue: packagingValue,
-        finishedProductsValue: finishedValue,
-        totalInventoryValue: rawValue + packagingValue + finishedValue
-      };
-    }
-  });
-
-  const { data: recentBatches } = useQuery({
-    queryKey: ["recentBatches"],
+export default function Dashboard() {
+  const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useQuery({
+    queryKey: ["dashboardRawMaterials"],
     queryFn: async () => {
       const { data, error } = await supabase
+        .from("raw_materials")
+        .select("*")
+        .order("quantity_in_stock", { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: packagingItems, isLoading: isLoadingPackagingItems } = useQuery({
+    queryKey: ["dashboardPackagingItems"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("packaging_items")
+        .select("*")
+        .order("quantity_in_stock", { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: finishedProducts, isLoading: isLoadingFinishedProducts } = useQuery({
+    queryKey: ["dashboardFinishedProducts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("finished_products")
+        .select("*")
+        .order("quantity_in_stock", { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: recentBatches, isLoading: isLoadingBatches } = useQuery({
+    queryKey: ["dashboardRecentBatches"],
+    queryFn: async () => {
+      const { data: batches, error } = await supabase
         .from("production_batches")
         .select(`
           *,
           production_batch_items (
             quantity,
-            finished_products (
-              name
-            )
-          )
+            item_type,
+            item_id
+          ),
+          finished_products (name)
         `)
-        .order('production_date', { ascending: false })
+        .order("production_date", { ascending: false })
         .limit(5);
-
+      
       if (error) throw error;
+      
+      if (!batches || batches.length === 0) {
+        return [];
+      }
 
-      return data.map(batch => ({
-        ...batch,
-        products: batch.production_batch_items
-          ?.map(item => `${item.finished_products.name} (${item.quantity})`)
-          .join(", ") || "No items"
-      }));
-    }
+      // Extract finished product names
+      return batches.map(batch => {
+        const productName = batch.finished_products?.name || "Unknown Product";
+        
+        return {
+          ...batch,
+          productName: productName,
+          formattedDate: format(parseISO(batch.production_date), 'MMM d, yyyy')
+        };
+      });
+    },
   });
 
-  const formatCurrency = (value: number) => 
-    `Rs. ${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  // Inventory overview data for pie chart
+  const inventoryData = [
+    { name: 'Raw Materials', value: rawMaterials?.length || 0, color: '#0088FE' },
+    { name: 'Packaging', value: packagingItems?.length || 0, color: '#00C49F' },
+    { name: 'Finished Products', value: finishedProducts?.length || 0, color: '#FFBB28' },
+  ];
+
+  // Transform raw materials data for bar chart
+  const rawMaterialsChartData = rawMaterials?.map(item => ({
+    name: item.name,
+    value: item.quantity_in_stock,
+  })) || [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">
-          Welcome to your inventory management system
-        </p>
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Inventory Dashboard</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Raw Materials</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{rawMaterials?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">Total items in inventory</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Packaging Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{packagingItems?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">Total items in inventory</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Finished Products</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{finishedProducts?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">Total items in inventory</p>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Raw Materials Value</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+          <CardHeader>
+            <CardTitle>Inventory Overview</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.rawMaterialsValue || 0)}</div>
-            <p className="text-xs text-muted-foreground">Total value in stock</p>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={inventoryData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {inventoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Packaging Value</CardTitle>
-            <Box className="h-4 w-4 text-muted-foreground" />
+          <CardHeader>
+            <CardTitle>Raw Materials Stock</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.packagingItemsValue || 0)}</div>
-            <p className="text-xs text-muted-foreground">Total value in stock</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Finished Goods Value</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.finishedProductsValue || 0)}</div>
-            <p className="text-xs text-muted-foreground">Total value in stock</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.totalInventoryValue || 0)}</div>
-            <p className="text-xs text-muted-foreground">Combined inventory value</p>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={rawMaterialsChartData.slice(0, 5)}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#0088FE" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -133,35 +184,35 @@ const Dashboard = () => {
       <Card>
         <CardHeader>
           <CardTitle>Recent Production Batches</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Latest production batches and their status
-          </p>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Batch #</TableHead>
-                <TableHead>Products</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentBatches?.map((batch) => (
-                <TableRow key={batch.id}>
-                  <TableCell>{batch.batch_number}</TableCell>
-                  <TableCell>{batch.products}</TableCell>
-                  <TableCell>{format(new Date(batch.production_date), "PPp")}</TableCell>
-                  <TableCell>{batch.status}</TableCell>
-                </TableRow>
+          {isLoadingBatches ? (
+            <div>Loading recent batches...</div>
+          ) : recentBatches && recentBatches.length > 0 ? (
+            <div className="space-y-4">
+              {recentBatches.map((batch) => (
+                <div key={batch.id} className="flex justify-between items-center border-b pb-2">
+                  <div>
+                    <div className="font-medium">{batch.batch_number}</div>
+                    <div className="text-sm text-muted-foreground">{batch.productName}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`capitalize text-sm ${
+                      batch.status === 'completed' ? 'text-green-500' : 
+                      batch.status === 'in_progress' ? 'text-amber-500' : 'text-red-500'
+                    }`}>
+                      {batch.status}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{batch.formattedDate}</div>
+                  </div>
+                </div>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          ) : (
+            <div>No recent production batches found.</div>
+          )}
         </CardContent>
       </Card>
     </div>
   );
-};
-
-export default Dashboard;
+}

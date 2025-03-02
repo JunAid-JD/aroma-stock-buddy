@@ -15,11 +15,9 @@ export type Database = {
           id: string
           name: string
           quantity_in_stock: number
-          reorder_point: number
           required_packaging: Json | null
           sku: string
           total_value: number | null
-          type: Database["public"]["Enums"]["material_type"]
           unit_price: number
           updated_at: string | null
           volume_config: Database["public"]["Enums"]["product_volume_config"]
@@ -29,11 +27,9 @@ export type Database = {
           id?: string
           name: string
           quantity_in_stock?: number
-          reorder_point?: number
           required_packaging?: Json | null
           sku: string
           total_value?: number | null
-          type: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
           volume_config?: Database["public"]["Enums"]["product_volume_config"]
@@ -43,11 +39,9 @@ export type Database = {
           id?: string
           name?: string
           quantity_in_stock?: number
-          reorder_point?: number
           required_packaging?: Json | null
           sku?: string
           total_value?: number | null
-          type?: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
           volume_config?: Database["public"]["Enums"]["product_volume_config"]

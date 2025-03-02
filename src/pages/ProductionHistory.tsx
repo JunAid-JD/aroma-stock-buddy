@@ -37,7 +37,8 @@ const ProductionHistory = () => {
             quantity,
             item_type,
             item_id
-          )
+          ),
+          finished_products (name)
         `)
         .order("production_date", { ascending: false });
 
@@ -67,23 +68,9 @@ const ProductionHistory = () => {
               .eq("id", item.item_id)
               .maybeSingle();
             name = data?.name || "Unknown Product";
-          } else if (item.item_type === 'raw_material') {
-            const { data } = await supabase
-              .from("raw_materials")
-              .select("name")
-              .eq("id", item.item_id)
-              .maybeSingle();
-            name = data?.name || "Unknown Raw Material";
-          } else if (item.item_type === 'packaging') {
-            const { data } = await supabase
-              .from("packaging_items")
-              .select("name")
-              .eq("id", item.item_id)
-              .maybeSingle();
-            name = data?.name || "Unknown Packaging";
           }
           
-          return `${name} (${item.quantity}) - ${item.item_type === 'finished_product' ? 'FG' : item.item_type === 'raw_material' ? 'RM' : 'PK'}`;
+          return `${name} (${item.quantity})`;
         }));
         
         return {
@@ -134,29 +121,7 @@ const ProductionHistory = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("finished_products")
-        .select("id, name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const { data: rawMaterials } = useQuery({
-    queryKey: ["rawMaterials"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("raw_materials")
-        .select("id, name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const { data: packagingItems } = useQuery({
-    queryKey: ["packagingItems"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("packaging_items")
-        .select("id, name, type");
+        .select("id, name, sku");
       if (error) throw error;
       return data || [];
     },
@@ -177,7 +142,7 @@ const ProductionHistory = () => {
       // Validate that all batch items have valid IDs
       const invalidItems = batchItems.filter(item => !item.item_id);
       if (invalidItems.length > 0) {
-        throw new Error("All batch items must have a selected product or material");
+        throw new Error("All batch items must have a selected product");
       }
 
       if (!data.product_id) {
@@ -263,20 +228,17 @@ const ProductionHistory = () => {
     }
   };
 
-  // Helper function to get the first finished product ID from the batch items or from available products
+  // Helper function to get the first finished product ID from the batch items
   const getFirstFinishedProductId = () => {
-    // First try to find a finished product in the batch items
     const finishedProductItem = batchItems.find(item => item.item_type === "finished_product");
     if (finishedProductItem && finishedProductItem.item_id) {
       return finishedProductItem.item_id;
     }
     
-    // If no finished product in batch items, use the first available finished product
     if (finishedProducts && finishedProducts.length > 0) {
       return finishedProducts[0].id;
     }
     
-    // Last resort
     return null;
   };
 
@@ -307,7 +269,7 @@ const ProductionHistory = () => {
         } else if (data && data.length > 0) {
           const batchItems = data.map(item => ({
             item_id: item.item_id,
-            item_type: item.item_type as "finished_product" | "raw_material" | "packaging",
+            item_type: "finished_product" as "finished_product",
             quantity: item.quantity,
           }));
           setBatchItems(batchItems);
@@ -376,8 +338,6 @@ const ProductionHistory = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  console.log("Production batches:", productionBatches);
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -407,15 +367,13 @@ const ProductionHistory = () => {
               {selectedBatch ? "Edit" : "Add"} Production Batch
             </DialogTitle>
             <DialogDescription>
-              Create a production batch with finished products, raw materials, or packaging items.
+              Create a production batch with finished products that will use raw materials and packaging according to SKU dependencies.
             </DialogDescription>
           </DialogHeader>
           <BatchForm
             selectedBatch={selectedBatch}
             batchItems={batchItems}
             finishedProducts={finishedProducts || []}
-            rawMaterials={rawMaterials || []}
-            packagingItems={packagingItems || []}
             onSubmit={handleSubmit}
             onClose={handleClose}
             onAddItem={addBatchItem}
