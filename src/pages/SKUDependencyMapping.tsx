@@ -50,6 +50,8 @@ const SKUDependencyMapping = () => {
       // Group dependencies by finished product ID
       const groupedDependencies = dependencies.reduce((acc, dep) => {
         const fpId = dep.finished_product_id;
+        if (!fpId) return acc; // Skip dependencies without a finished product ID
+        
         if (!acc[fpId]) {
           acc[fpId] = {
             id: fpId,
@@ -146,10 +148,14 @@ const SKUDependencyMapping = () => {
     try {
       console.log("Form data submitted:", formData);
 
+      // Handle the case where we have a new product (fg_sku) or existing one (finished_product_id)
       let finishedProductId = formData.finished_product_id;
       
+      // If we're creating a new product, not editing an existing one
       if (!finishedProductId && formData.fg_sku) {
-        // Create a new finished product
+        console.log("Creating new finished product with SKU:", formData.fg_sku);
+        
+        // Create a new finished product first
         const { data: newProduct, error: productError } = await supabase
           .from("finished_products")
           .insert({
@@ -166,6 +172,10 @@ const SKUDependencyMapping = () => {
           throw productError;
         }
         
+        if (!newProduct) {
+          throw new Error("Failed to create finished product");
+        }
+        
         finishedProductId = newProduct.id;
         console.log("Created new finished product with ID:", finishedProductId);
       }
@@ -176,6 +186,7 @@ const SKUDependencyMapping = () => {
 
       // If editing, delete existing dependencies
       if (selectedDependency) {
+        console.log("Deleting existing dependencies for product ID:", selectedDependency.finished_product_id);
         const { error: deleteError } = await supabase
           .from("sku_dependencies")
           .delete()
@@ -186,43 +197,51 @@ const SKUDependencyMapping = () => {
 
       // Insert new dependencies for raw materials
       if (formData.rawMaterials && formData.rawMaterials.length > 0) {
-        const rawMaterialDeps = formData.rawMaterials.map((rm: any) => ({
-          finished_product_id: finishedProductId,
-          raw_material_id: rm.item_id,
-          item_type: "raw_material",
-          quantity_required: parseFloat(rm.quantity) || 1,
-          packaging_item_id: null
-        }));
+        const rawMaterialDeps = formData.rawMaterials
+          .filter((rm: any) => rm.item_id) // Only include items with an ID
+          .map((rm: any) => ({
+            finished_product_id: finishedProductId,
+            raw_material_id: rm.item_id,
+            item_type: "raw_material",
+            quantity_required: parseFloat(rm.quantity) || 1,
+            packaging_item_id: null
+          }));
 
-        console.log("Inserting raw material dependencies:", rawMaterialDeps);
-        const { error: rmError } = await supabase
-          .from("sku_dependencies")
-          .insert(rawMaterialDeps);
+        if (rawMaterialDeps.length > 0) {
+          console.log("Inserting raw material dependencies:", rawMaterialDeps);
+          const { error: rmError } = await supabase
+            .from("sku_dependencies")
+            .insert(rawMaterialDeps);
 
-        if (rmError) {
-          console.error("Error inserting raw material dependencies:", rmError);
-          throw rmError;
+          if (rmError) {
+            console.error("Error inserting raw material dependencies:", rmError);
+            throw rmError;
+          }
         }
       }
 
       // Insert new dependencies for packaging items
       if (formData.packagingItems && formData.packagingItems.length > 0) {
-        const packagingDeps = formData.packagingItems.map((pkg: any) => ({
-          finished_product_id: finishedProductId,
-          packaging_item_id: pkg.item_id,
-          item_type: "packaging",
-          quantity_required: parseFloat(pkg.quantity) || 1,
-          raw_material_id: null
-        }));
+        const packagingDeps = formData.packagingItems
+          .filter((pkg: any) => pkg.item_id) // Only include items with an ID
+          .map((pkg: any) => ({
+            finished_product_id: finishedProductId,
+            packaging_item_id: pkg.item_id,
+            item_type: "packaging",
+            quantity_required: parseFloat(pkg.quantity) || 1,
+            raw_material_id: null
+          }));
 
-        console.log("Inserting packaging dependencies:", packagingDeps);
-        const { error: pkgError } = await supabase
-          .from("sku_dependencies")
-          .insert(packagingDeps);
+        if (packagingDeps.length > 0) {
+          console.log("Inserting packaging dependencies:", packagingDeps);
+          const { error: pkgError } = await supabase
+            .from("sku_dependencies")
+            .insert(packagingDeps);
 
-        if (pkgError) {
-          console.error("Error inserting packaging dependencies:", pkgError);
-          throw pkgError;
+          if (pkgError) {
+            console.error("Error inserting packaging dependencies:", pkgError);
+            throw pkgError;
+          }
         }
       }
 

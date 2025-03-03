@@ -72,6 +72,8 @@ const DependencyForm = ({ dependency, onSubmit, onClose }: DependencyFormProps) 
 
   useEffect(() => {
     if (dependency) {
+      console.log("Loading dependency for editing:", dependency);
+      
       setFormValues({
         fg_sku: dependency.fg_sku || "",
         finished_product_id: dependency.finished_product_id || "",
@@ -111,11 +113,25 @@ const DependencyForm = ({ dependency, onSubmit, onClose }: DependencyFormProps) 
 
       setRawMaterials(rawMaterialItems);
       setPackagingItems(packagingItems);
+    } else {
+      // Reset form for new dependency
+      setFormValues({
+        fg_sku: "",
+        finished_product_id: "",
+      });
+      setRawMaterials([{ item_id: "", type: "raw_material", quantity: 1 }]);
+      setPackagingItems([{ item_id: "", type: "packaging", quantity: 1 }]);
     }
   }, [dependency]);
 
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    console.log("Submitting form with values:", {
+      formValues,
+      rawMaterials,
+      packagingItems
+    });
     
     // Filter out items that don't have an item_id
     const validRawMaterials = rawMaterials.filter(item => item.item_id !== "");
@@ -129,6 +145,7 @@ const DependencyForm = ({ dependency, onSubmit, onClose }: DependencyFormProps) 
   };
 
   const handleChange = (name: string, value: string) => {
+    console.log(`Changing form value: ${name} = ${value}`);
     setFormValues(prev => ({ ...prev, [name]: value }));
   };
 
@@ -204,7 +221,7 @@ const DependencyForm = ({ dependency, onSubmit, onClose }: DependencyFormProps) 
               <div className="flex-1">
                 <Label htmlFor={`rm_${index}`}>Raw Material</Label>
                 <Select 
-                  value={item.item_id}
+                  value={item.item_id || ""}
                   onValueChange={(value) => updateRawMaterial(index, 'item_id', value)}
                 >
                   <SelectTrigger>
@@ -224,7 +241,7 @@ const DependencyForm = ({ dependency, onSubmit, onClose }: DependencyFormProps) 
                 <Input
                   id={`rm_qty_${index}`}
                   type="number"
-                  value={item.quantity}
+                  value={item.quantity || 1}
                   onChange={(e) => updateRawMaterial(index, 'quantity', parseFloat(e.target.value) || 1)}
                   min="0.1"
                   step="0.1"
@@ -260,7 +277,7 @@ const DependencyForm = ({ dependency, onSubmit, onClose }: DependencyFormProps) 
               <div className="flex-1">
                 <Label htmlFor={`pkg_${index}`}>Packaging Item</Label>
                 <Select 
-                  value={item.item_id}
+                  value={item.item_id || ""}
                   onValueChange={(value) => updatePackagingItem(index, 'item_id', value)}
                 >
                   <SelectTrigger>
@@ -280,7 +297,7 @@ const DependencyForm = ({ dependency, onSubmit, onClose }: DependencyFormProps) 
                 <Input
                   id={`pkg_qty_${index}`}
                   type="number"
-                  value={item.quantity}
+                  value={item.quantity || 1}
                   onChange={(e) => updatePackagingItem(index, 'quantity', parseFloat(e.target.value) || 1)}
                   min="1"
                 />

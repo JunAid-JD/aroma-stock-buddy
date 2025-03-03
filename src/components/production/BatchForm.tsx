@@ -70,7 +70,7 @@ const BatchForm = ({
                   <SelectContent>
                     {finishedProducts?.map((product: any) => (
                       <SelectItem key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
+                        {product.name || 'Unknown'} ({product.sku || 'Unknown'})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -81,7 +81,7 @@ const BatchForm = ({
                 <Input
                   id={`quantity_${index}`}
                   type="number"
-                  value={item.quantity}
+                  value={item.quantity || 0}
                   onChange={(e) => onUpdateItem(index, 'quantity', parseInt(e.target.value) || 0)}
                   min="1"
                   required
