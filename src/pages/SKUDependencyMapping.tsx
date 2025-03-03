@@ -1,401 +1,635 @@
 
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Pencil, Plus, Trash } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import DependencyForm from "@/components/dependency/DependencyForm";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+// Fetch all finished products
+const fetchFinishedProducts = async () => {
+  const { data, error } = await supabase
+    .from("finished_products")
+    .select("*")
+    .order("name");
+  
+  if (error) throw error;
+  return data || [];
+};
+
+// Fetch all raw materials
+const fetchRawMaterials = async () => {
+  const { data, error } = await supabase
+    .from("raw_materials")
+    .select("*")
+    .order("name");
+  
+  if (error) throw error;
+  return data || [];
+};
+
+// Fetch all packaging materials
+const fetchPackagingMaterials = async () => {
+  const { data, error } = await supabase
+    .from("packaging_materials")
+    .select("*")
+    .order("name");
+  
+  if (error) throw error;
+  return data || [];
+};
+
+// Fetch dependencies for a specific finished product
+const fetchDependencies = async (productId: string) => {
+  if (!productId) return [];
+  
+  const { data, error } = await supabase
+    .from("sku_dependencies")
+    .select(`
+      id,
+      quantity,
+      material_type,
+      material_id,
+      raw_materials (id, name, sku, unit),
+      packaging_materials (id, name, sku, unit)
+    `)
+    .eq("finished_product_id", productId);
+  
+  if (error) throw error;
+  return data || [];
+};
+
+// Helper function to get material name based on type and ID
+const getMaterialName = (dependency: any) => {
+  if (dependency.material_type === 'raw') {
+    return dependency.raw_materials?.name || 'Unknown Raw Material';
+  } else if (dependency.material_type === 'packaging') {
+    return dependency.packaging_materials?.name || 'Unknown Packaging Material';
+  }
+  return 'Unknown Material';
+};
+
+// Helper function to get material SKU based on type and ID
+const getMaterialSKU = (dependency: any) => {
+  if (dependency.material_type === 'raw') {
+    return dependency.raw_materials?.sku || '-';
+  } else if (dependency.material_type === 'packaging') {
+    return dependency.packaging_materials?.sku || '-';
+  }
+  return '-';
+};
+
+// Helper function to get material unit based on type and ID
+const getMaterialUnit = (dependency: any) => {
+  if (dependency.material_type === 'raw') {
+    return dependency.raw_materials?.unit || '-';
+  } else if (dependency.material_type === 'packaging') {
+    return dependency.packaging_materials?.unit || '-';
+  }
+  return '-';
+};
 
 const SKUDependencyMapping = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [selectedDependency, setSelectedDependency] = useState<any>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [isAddingDependency, setIsAddingDependency] = useState(false);
+  const [isEditingDependency, setIsEditingDependency] = useState(false);
+  const [currentDependency, setCurrentDependency] = useState<any>(null);
+  const [isDeletingDependency, setIsDeletingDependency] = useState(false);
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductSKU, setNewProductSKU] = useState("");
+  const [newProductUnit, setNewProductUnit] = useState("");
 
-  // Fetch all SKU dependencies
-  const { data: dependencies, isLoading } = useQuery({
-    queryKey: ["skuDependencies"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sku_dependencies")
-        .select(`
-          id,
-          item_type,
-          quantity_required,
-          finished_product_id,
-          raw_material_id,
-          packaging_item_id,
-          finished_products (id, name, sku),
-          raw_materials (id, name, sku),
-          packaging_items (id, name, sku)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
+  // Fetch finished products
+  const { 
+    data: finishedProducts, 
+    isLoading: isLoadingProducts 
+  } = useQuery({
+    queryKey: ['finished_products'],
+    queryFn: fetchFinishedProducts,
   });
 
-  // Fetch all finished products for the dropdown
-  const { data: finishedProducts } = useQuery({
-    queryKey: ["finishedProducts"],
-    queryFn: async () => {
+  // Fetch raw materials
+  const { 
+    data: rawMaterials 
+  } = useQuery({
+    queryKey: ['raw_materials'],
+    queryFn: fetchRawMaterials,
+  });
+
+  // Fetch packaging materials
+  const { 
+    data: packagingMaterials 
+  } = useQuery({
+    queryKey: ['packaging_materials'],
+    queryFn: fetchPackagingMaterials,
+  });
+
+  // Fetch dependencies
+  const { 
+    data: dependencies, 
+    isLoading: isLoadingDependencies 
+  } = useQuery({
+    queryKey: ['dependencies', selectedProduct],
+    queryFn: () => fetchDependencies(selectedProduct || ''),
+    enabled: !!selectedProduct,
+  });
+
+  // Mutation to create a new finished product
+  const createProductMutation = useMutation({
+    mutationFn: async (newProduct: any) => {
       const { data, error } = await supabase
         .from("finished_products")
-        .select("id, name, sku");
-
+        .insert([newProduct])
+        .select()
+        .single();
+      
       if (error) throw error;
-      return data || [];
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['finished_products'] });
+      setSelectedProduct(data.id);
+      setIsCreatingProduct(false);
+      setNewProductName("");
+      setNewProductSKU("");
+      setNewProductUnit("");
+      toast({
+        title: "Success",
+        description: "Finished product created successfully",
+      });
+    },
+    onError: (error) => {
+      console.error("Error creating product:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create finished product",
+        variant: "destructive",
+      });
     },
   });
 
-  // Fetch all raw materials for the dropdown
-  const { data: rawMaterials } = useQuery({
-    queryKey: ["rawMaterials"],
-    queryFn: async () => {
+  // Mutation to add a new dependency
+  const addDependencyMutation = useMutation({
+    mutationFn: async (newDependency: any) => {
       const { data, error } = await supabase
-        .from("raw_materials")
-        .select("id, name, sku");
-
+        .from("sku_dependencies")
+        .insert([newDependency])
+        .select();
+      
       if (error) throw error;
-      return data || [];
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dependencies', selectedProduct] });
+      setIsAddingDependency(false);
+      toast({
+        title: "Success",
+        description: "Dependency added successfully",
+      });
+    },
+    onError: (error) => {
+      console.error("Error adding dependency:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add dependency",
+        variant: "destructive",
+      });
     },
   });
 
-  // Fetch all packaging items for the dropdown
-  const { data: packagingItems } = useQuery({
-    queryKey: ["packagingItems"],
-    queryFn: async () => {
+  // Mutation to update a dependency
+  const updateDependencyMutation = useMutation({
+    mutationFn: async ({ id, updatedDependency }: { id: string, updatedDependency: any }) => {
       const { data, error } = await supabase
-        .from("packaging_items")
-        .select("id, name, sku");
-
+        .from("sku_dependencies")
+        .update(updatedDependency)
+        .eq("id", id)
+        .select();
+      
       if (error) throw error;
-      return data || [];
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dependencies', selectedProduct] });
+      setIsEditingDependency(false);
+      setCurrentDependency(null);
+      toast({
+        title: "Success",
+        description: "Dependency updated successfully",
+      });
+    },
+    onError: (error) => {
+      console.error("Error updating dependency:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update dependency",
+        variant: "destructive",
+      });
     },
   });
 
-  // Listen for realtime updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'sku_dependencies'
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
-  // Group dependencies by finished product
-  const groupedDependencies = dependencies?.reduce((acc: any, dependency: any) => {
-    const finishedProductId = dependency.finished_product_id;
-    if (!acc[finishedProductId]) {
-      const finishedProduct = dependency.finished_products;
-      acc[finishedProductId] = {
-        id: finishedProductId,
-        name: finishedProduct?.name || "Unknown Product",
-        sku: finishedProduct?.sku || "Unknown SKU",
-        dependencies: []
-      };
-    }
-    
-    let componentDetails;
-    if (dependency.item_type === 'raw_material') {
-      componentDetails = dependency.raw_materials;
-    } else if (dependency.item_type === 'packaging') {
-      componentDetails = dependency.packaging_items;
-    }
-    
-    acc[finishedProductId].dependencies.push({
-      id: dependency.id,
-      type: dependency.item_type,
-      name: componentDetails?.name || "Unknown",
-      sku: componentDetails?.sku || "Unknown",
-      quantity: dependency.quantity_required
-    });
-    
-    return acc;
-  }, {});
-
-  const handleAdd = () => {
-    setSelectedDependency(null);
-    setIsDialogOpen(true);
-  };
-
-  const handleEdit = (dependency: any) => {
-    setSelectedDependency(dependency);
-    setIsDialogOpen(true);
-  };
-
-  const handleDelete = (dependency: any) => {
-    setSelectedDependency(dependency);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!selectedDependency) return;
-
-    try {
+  // Mutation to delete a dependency
+  const deleteDependencyMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("sku_dependencies")
         .delete()
-        .eq("id", selectedDependency.id);
+        .eq("id", id);
       
       if (error) throw error;
-
-      await queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dependencies', selectedProduct] });
+      setIsDeletingDependency(false);
+      setCurrentDependency(null);
       toast({
         title: "Success",
-        description: "Dependency mapping deleted successfully.",
+        description: "Dependency removed successfully",
       });
-      setIsDeleteDialogOpen(false);
-      setSelectedDependency(null);
-    } catch (error: any) {
+    },
+    onError: (error) => {
+      console.error("Error deleting dependency:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete dependency mapping.",
+        description: "Failed to remove dependency",
         variant: "destructive",
       });
+    },
+  });
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newProductName.trim() || !newProductSKU.trim() || !newProductUnit.trim()) {
+      toast({
+        title: "Error",
+        description: "All fields are required",
+        variant: "destructive",
+      });
+      return;
     }
+    
+    createProductMutation.mutate({
+      name: newProductName.trim(),
+      sku: newProductSKU.trim(),
+      unit: newProductUnit.trim(),
+    });
   };
 
-  const handleSubmit = async (formData: any) => {
-    try {
-      console.log("Form data to be submitted:", formData);
-      
-      // Validate form data
-      if (!formData.finished_product_id) {
-        throw new Error("Please select a finished product");
-      }
-      
-      if (!formData.item_type) {
-        throw new Error("Please select a component type");
-      }
-      
-      if (formData.item_type === 'raw_material' && !formData.raw_material_id) {
-        throw new Error("Please select a raw material");
-      }
-      
-      if (formData.item_type === 'packaging' && !formData.packaging_item_id) {
-        throw new Error("Please select a packaging item");
-      }
-      
-      if (!formData.quantity_required || formData.quantity_required <= 0) {
-        throw new Error("Please enter a valid quantity greater than 0");
-      }
+  const handleAddDependency = (formData: any) => {
+    // Ensure the form data includes the finished product ID
+    const newDependency = {
+      ...formData,
+      finished_product_id: selectedProduct,
+    };
+    
+    addDependencyMutation.mutate(newDependency);
+  };
 
-      // Format data for insertion
-      let insertData: any = {
-        finished_product_id: formData.finished_product_id,
-        item_type: formData.item_type,
-        quantity_required: formData.quantity_required,
-      };
-      
-      if (formData.item_type === 'raw_material') {
-        insertData.raw_material_id = formData.raw_material_id;
-      } else if (formData.item_type === 'packaging') {
-        insertData.packaging_item_id = formData.packaging_item_id;
-      }
+  const handleUpdateDependency = (formData: any) => {
+    if (!currentDependency?.id) return;
+    
+    updateDependencyMutation.mutate({
+      id: currentDependency.id,
+      updatedDependency: formData,
+    });
+  };
 
-      console.log("Data to be inserted/updated:", insertData);
-      
-      // If we're creating a new finished product
-      if (formData.finished_product_id === "new" && formData.new_product_name && formData.new_product_sku) {
-        console.log("Creating new finished product");
-        
-        const { data: productData, error: productError } = await supabase
-          .from("finished_products")
-          .insert({
-            name: formData.new_product_name,
-            sku: formData.new_product_sku,
-            volume_config: formData.volume_config || 'essential_10ml',
-            quantity_in_stock: 0,
-            unit_price: 0,
-          })
-          .select('id')
-          .single();
-        
-        if (productError) {
-          console.error("Error creating product:", productError);
-          throw productError;
-        }
-        
-        if (!productData || !productData.id) {
-          throw new Error("Failed to create new product");
-        }
-        
-        console.log("New product created with ID:", productData.id);
-        insertData.finished_product_id = productData.id;
-      }
+  const handleDeleteDependency = () => {
+    if (!currentDependency?.id) return;
+    
+    deleteDependencyMutation.mutate(currentDependency.id);
+  };
 
-      if (selectedDependency) {
-        // Update existing dependency
-        const { error } = await supabase
-          .from("sku_dependencies")
-          .update(insertData)
-          .eq("id", selectedDependency.id);
-        
-        if (error) throw error;
-      } else {
-        // Create new dependency
-        const { error } = await supabase
-          .from("sku_dependencies")
-          .insert(insertData);
-        
-        if (error) {
-          console.error("Error inserting dependency:", error);
-          throw error;
-        }
-      }
+  const closeEditModal = () => {
+    setIsEditingDependency(false);
+    setCurrentDependency(null);
+  };
 
-      await queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
-      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
-      toast({
-        title: "Success",
-        description: `Dependency mapping ${selectedDependency ? "updated" : "added"} successfully.`,
-      });
-      setIsDialogOpen(false);
-    } catch (error: any) {
-      console.error("Error in handleSubmit:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-    }
+  const closeDeleteModal = () => {
+    setIsDeletingDependency(false);
+    setCurrentDependency(null);
+  };
+
+  const handleProductSelect = (productId: string) => {
+    setSelectedProduct(productId);
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">SKU Dependency Mapping</h2>
+          <h1 className="text-2xl font-bold">SKU Dependency Mapping</h1>
           <p className="text-muted-foreground">
-            Define what components are needed for each finished product
+            Manage component dependencies for finished products
           </p>
         </div>
-        <Button onClick={handleAdd}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Dependency
-        </Button>
       </div>
 
-      {isLoading ? (
-        <div>Loading...</div>
-      ) : !groupedDependencies || Object.keys(groupedDependencies).length === 0 ? (
-        <div className="text-center py-10 bg-muted rounded-lg">
-          <h3 className="text-lg font-medium">No dependencies defined yet</h3>
-          <p className="text-muted-foreground mt-2">
-            Add a new dependency to define what components are needed for your finished products.
-          </p>
-          <Button onClick={handleAdd} className="mt-4">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Your First Dependency
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {Object.values(groupedDependencies).map((product: any) => (
-            <div key={product.id} className="border rounded-lg overflow-hidden">
-              <div className="bg-muted px-4 py-3 flex justify-between items-center">
-                <div>
-                  <h3 className="font-medium">{product.name}</h3>
-                  <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={handleAdd}>
-                  <Plus className="mr-2 h-3 w-3" />
-                  Add Component
-                </Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Finished Products</CardTitle>
+                <CardDescription>
+                  Select a product to view its components
+                </CardDescription>
               </div>
-              <div className="p-4">
-                <div className="divide-y">
-                  {product.dependencies.map((dependency: any) => (
-                    <div key={dependency.id} className="py-3 flex justify-between items-center">
+              <Dialog open={isCreatingProduct} onOpenChange={setIsCreatingProduct}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="mr-2 h-4 w-4" /> Add Product
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New Finished Product</DialogTitle>
+                    <DialogDescription>
+                      Add a new finished product to manage its dependencies
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateProduct}>
+                    <div className="space-y-4">
                       <div>
-                        <div className="flex items-center">
-                          <span className={`w-2 h-2 rounded-full mr-2 ${
-                            dependency.type === 'raw_material' ? 'bg-blue-500' : 'bg-green-500'
-                          }`}></span>
-                          <span className="font-medium">{dependency.name}</span>
-                        </div>
-                        <div className="text-sm text-muted-foreground flex mt-1">
-                          <div className="mr-4">Type: {dependency.type === 'raw_material' ? 'Raw Material' : 'Packaging'}</div>
-                          <div className="mr-4">SKU: {dependency.sku}</div>
-                          <div>Quantity: {dependency.quantity}</div>
-                        </div>
+                        <Label htmlFor="name">Product Name</Label>
+                        <Input
+                          id="name"
+                          value={newProductName}
+                          onChange={(e) => setNewProductName(e.target.value)}
+                          required
+                        />
                       </div>
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(dependency)}>
-                          Edit
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(dependency)}>
-                          Delete
-                        </Button>
+                      <div>
+                        <Label htmlFor="sku">SKU</Label>
+                        <Input
+                          id="sku"
+                          value={newProductSKU}
+                          onChange={(e) => setNewProductSKU(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="unit">Unit</Label>
+                        <Input
+                          id="unit"
+                          value={newProductUnit}
+                          onChange={(e) => setNewProductUnit(e.target.value)}
+                          required
+                        />
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <DialogFooter className="mt-6">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsCreatingProduct(false)}
+                        disabled={createProductMutation.isPending}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={createProductMutation.isPending}>
+                        {createProductMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          "Create Product"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
-          ))}
-        </div>
-      )}
+          </CardHeader>
+          <CardContent>
+            {isLoadingProducts ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {finishedProducts && finishedProducts.length > 0 ? (
+                  finishedProducts.map((product: any) => (
+                    <Button
+                      key={product.id}
+                      variant={selectedProduct === product.id ? "default" : "outline"}
+                      className="w-full justify-start"
+                      onClick={() => handleProductSelect(product.id)}
+                    >
+                      {product.name} ({product.sku})
+                    </Button>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    No finished products found.
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Dependencies</CardTitle>
+                <CardDescription>
+                  Components required for the selected product
+                </CardDescription>
+              </div>
+              {selectedProduct && (
+                <Dialog open={isAddingDependency} onOpenChange={setIsAddingDependency}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="mr-2 h-4 w-4" /> Add Component
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Component Dependency</DialogTitle>
+                      <DialogDescription>
+                        Specify the components required for this product
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DependencyForm
+                      rawMaterials={rawMaterials || []}
+                      packagingMaterials={packagingMaterials || []}
+                      onSubmit={handleAddDependency}
+                      onCancel={() => setIsAddingDependency(false)}
+                      isSubmitting={addDependencyMutation.isPending}
+                    />
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!selectedProduct ? (
+              <div className="text-center py-6 text-muted-foreground">
+                Select a finished product to view its components
+              </div>
+            ) : isLoadingDependencies ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : dependencies && dependencies.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Component</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dependencies.map((dependency: any) => (
+                    <TableRow key={dependency.id}>
+                      <TableCell>{getMaterialName(dependency)}</TableCell>
+                      <TableCell>{getMaterialSKU(dependency)}</TableCell>
+                      <TableCell>
+                        {dependency.material_type === 'raw' ? 'Raw Material' : 'Packaging'}
+                      </TableCell>
+                      <TableCell>
+                        {dependency.quantity} {getMaterialUnit(dependency)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setCurrentDependency(dependency);
+                              setIsEditingDependency(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setCurrentDependency(dependency);
+                              setIsDeletingDependency(true);
+                            }}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                No dependencies found for this product
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Edit Dependency Dialog */}
+      <Dialog open={isEditingDependency} onOpenChange={closeEditModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {selectedDependency ? "Edit" : "Add"} SKU Dependency
-            </DialogTitle>
+            <DialogTitle>Edit Component Dependency</DialogTitle>
             <DialogDescription>
-              Define what components are needed for each finished product. This helps with inventory tracking during production.
+              Update the component requirements for this product
             </DialogDescription>
           </DialogHeader>
           <DependencyForm
-            finishedProducts={finishedProducts || []}
             rawMaterials={rawMaterials || []}
-            packagingItems={packagingItems || []}
-            selectedDependency={selectedDependency}
-            onSubmit={handleSubmit}
-            onCancel={() => setIsDialogOpen(false)}
+            packagingMaterials={packagingMaterials || []}
+            onSubmit={handleUpdateDependency}
+            onCancel={closeEditModal}
+            isSubmitting={updateDependencyMutation.isPending}
+            initialData={{
+              material_type: currentDependency?.material_type,
+              material_id: currentDependency?.material_id,
+              quantity: currentDependency?.quantity,
+            }}
+            isEditing
           />
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      {/* Delete Dependency Alert Dialog */}
+      <AlertDialog open={isDeletingDependency} onOpenChange={closeDeleteModal}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete this dependency mapping.
+              Are you sure you want to remove this component dependency?
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-500 hover:bg-red-600">
-              Delete
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDependency}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteDependencyMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </Dialog>
+      </AlertDialog>
     </div>
   );
 };
