@@ -17,12 +17,7 @@ export const menuItems = [
   {
     title: "Dashboard",
     icon: Home,
-    link: "/",
-  },
-  {
-    title: "Finished Goods",
-    icon: PackageOpen,
-    link: "/finished-goods",
+    link: "/dashboard",
   },
   {
     title: "Raw Materials",
@@ -33,6 +28,11 @@ export const menuItems = [
     title: "Packaging Goods",
     icon: Package,
     link: "/packaging-goods",
+  },
+  {
+    title: "Finished Goods",
+    icon: PackageOpen,
+    link: "/finished-goods",
   },
   {
     title: "Production History",

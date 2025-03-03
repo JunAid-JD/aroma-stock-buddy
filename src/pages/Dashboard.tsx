@@ -86,6 +86,7 @@ const Dashboard = () => {
   const { data: recentBatches } = useQuery({
     queryKey: ["recentBatches"],
     queryFn: async () => {
+      // Get production batches with their related finished product
       const { data: batches, error } = await supabase
         .from("production_batches")
         .select(`
@@ -94,7 +95,10 @@ const Dashboard = () => {
           status,
           created_at,
           product_id,
-          finished_products (name, sku)
+          finished_products:product_id (
+            name, 
+            sku
+          )
         `)
         .order("created_at", { ascending: false })
         .limit(5);
@@ -104,8 +108,8 @@ const Dashboard = () => {
       return batches.map(batch => {
         return {
           ...batch,
-          product_name: batch.finished_products?.name || "Unknown Product",
-          product_sku: batch.finished_products?.sku || "Unknown SKU"
+          product_name: batch.finished_products ? batch.finished_products.name : 'Unknown Product',
+          product_sku: batch.finished_products ? batch.finished_products.sku : 'Unknown SKU'
         };
       });
     },
@@ -256,7 +260,9 @@ const Dashboard = () => {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full">View All Batches</Button>
+                <Button variant="outline" className="w-full" onClick={() => window.location.href = "/production-history"}>
+                  View All Batches
+                </Button>
               </CardFooter>
             </Card>
             <Card className="col-span-1">

@@ -35,15 +35,15 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<Layout />}>
-                <Route index element={<Index />} />
+                <Route index element={<Dashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="raw-materials" element={<RawMaterials />} />
-                <Route path="packaging" element={<PackagingGoods />} />
+                <Route path="packaging-goods" element={<PackagingGoods />} />
                 <Route path="finished-goods" element={<FinishedGoods />} />
-                <Route path="production" element={<ProductionHistory />} />
+                <Route path="production-history" element={<ProductionHistory />} />
                 <Route path="loss-records" element={<LossRecords />} />
                 <Route path="purchase-records" element={<PurchaseRecords />} />
-                <Route path="sku-mapping" element={<SKUDependencyMapping />} />
+                <Route path="sku-dependency-mapping" element={<SKUDependencyMapping />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>

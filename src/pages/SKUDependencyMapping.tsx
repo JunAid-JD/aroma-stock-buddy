@@ -66,10 +66,10 @@ const fetchRawMaterials = async () => {
   return data || [];
 };
 
-// Fetch all packaging materials
+// Fetch all packaging materials - we need to query packaging_items not packaging_materials
 const fetchPackagingMaterials = async () => {
   const { data, error } = await supabase
-    .from("packaging_materials")
+    .from("packaging_items")
     .select("*")
     .order("name");
   
@@ -85,11 +85,13 @@ const fetchDependencies = async (productId: string) => {
     .from("sku_dependencies")
     .select(`
       id,
-      quantity,
       material_type,
       material_id,
+      raw_material_id,
+      packaging_item_id,
+      quantity_required,
       raw_materials (id, name, sku, unit),
-      packaging_materials (id, name, sku, unit)
+      packaging_items:packaging_item_id (id, name, sku)
     `)
     .eq("finished_product_id", productId);
   
@@ -102,7 +104,7 @@ const getMaterialName = (dependency: any) => {
   if (dependency.material_type === 'raw') {
     return dependency.raw_materials?.name || 'Unknown Raw Material';
   } else if (dependency.material_type === 'packaging') {
-    return dependency.packaging_materials?.name || 'Unknown Packaging Material';
+    return dependency.packaging_items?.name || 'Unknown Packaging Material';
   }
   return 'Unknown Material';
 };
@@ -112,7 +114,7 @@ const getMaterialSKU = (dependency: any) => {
   if (dependency.material_type === 'raw') {
     return dependency.raw_materials?.sku || '-';
   } else if (dependency.material_type === 'packaging') {
-    return dependency.packaging_materials?.sku || '-';
+    return dependency.packaging_items?.sku || '-';
   }
   return '-';
 };
@@ -122,7 +124,7 @@ const getMaterialUnit = (dependency: any) => {
   if (dependency.material_type === 'raw') {
     return dependency.raw_materials?.unit || '-';
   } else if (dependency.material_type === 'packaging') {
-    return dependency.packaging_materials?.unit || '-';
+    return 'pcs';
   }
   return '-';
 };
@@ -212,9 +214,24 @@ const SKUDependencyMapping = () => {
   // Mutation to add a new dependency
   const addDependencyMutation = useMutation({
     mutationFn: async (newDependency: any) => {
+      console.log("Adding dependency:", newDependency);
+      
+      const dependencyData = {
+        finished_product_id: selectedProduct,
+        material_type: newDependency.material_type,
+        quantity_required: newDependency.quantity_required,
+      };
+      
+      // Add the correct field based on material type
+      if (newDependency.material_type === 'raw') {
+        Object.assign(dependencyData, { raw_material_id: newDependency.material_id });
+      } else if (newDependency.material_type === 'packaging') {
+        Object.assign(dependencyData, { packaging_item_id: newDependency.material_id });
+      }
+      
       const { data, error } = await supabase
         .from("sku_dependencies")
-        .insert([newDependency])
+        .insert([dependencyData])
         .select();
       
       if (error) throw error;
@@ -241,9 +258,29 @@ const SKUDependencyMapping = () => {
   // Mutation to update a dependency
   const updateDependencyMutation = useMutation({
     mutationFn: async ({ id, updatedDependency }: { id: string, updatedDependency: any }) => {
+      console.log("Updating dependency:", id, updatedDependency);
+      
+      const dependencyData = {
+        material_type: updatedDependency.material_type,
+        quantity_required: updatedDependency.quantity_required,
+      };
+      
+      // Add the correct field based on material type
+      if (updatedDependency.material_type === 'raw') {
+        Object.assign(dependencyData, { 
+          raw_material_id: updatedDependency.material_id,
+          packaging_item_id: null
+        });
+      } else if (updatedDependency.material_type === 'packaging') {
+        Object.assign(dependencyData, { 
+          packaging_item_id: updatedDependency.material_id,
+          raw_material_id: null
+        });
+      }
+      
       const { data, error } = await supabase
         .from("sku_dependencies")
-        .update(updatedDependency)
+        .update(dependencyData)
         .eq("id", id)
         .select();
       
@@ -315,14 +352,42 @@ const SKUDependencyMapping = () => {
       name: newProductName.trim(),
       sku: newProductSKU.trim(),
       unit: newProductUnit.trim(),
+      type: 'essential_oil',  // Default value
+      quantity_in_stock: 0,
+      unit_price: 0,
+      volume_config: 'essential_10ml', // Default value
     });
   };
 
   const handleAddDependency = (formData: any) => {
-    // Ensure the form data includes the finished product ID
+    console.log("Form data for new dependency:", formData);
+    
+    if (!selectedProduct) {
+      toast({
+        title: "Error",
+        description: "Please select a product first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Check if at least one valid dependency is specified
+    const hasValidDependency = (formData.material_type && formData.material_id);
+    
+    if (!hasValidDependency) {
+      toast({
+        title: "Error",
+        description: "Please specify at least one component dependency",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Create a new dependency
     const newDependency = {
-      ...formData,
-      finished_product_id: selectedProduct,
+      material_type: formData.material_type,
+      material_id: formData.material_id,
+      quantity_required: parseFloat(formData.quantity_required) || 1
     };
     
     addDependencyMutation.mutate(newDependency);
@@ -331,9 +396,17 @@ const SKUDependencyMapping = () => {
   const handleUpdateDependency = (formData: any) => {
     if (!currentDependency?.id) return;
     
+    console.log("Form data for update dependency:", formData);
+    
+    const updatedDependency = {
+      material_type: formData.material_type,
+      material_id: formData.material_id,
+      quantity_required: parseFloat(formData.quantity_required) || 1
+    };
+    
     updateDependencyMutation.mutate({
       id: currentDependency.id,
-      updatedDependency: formData,
+      updatedDependency: updatedDependency,
     });
   };
 
@@ -498,8 +571,8 @@ const SKUDependencyMapping = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <DependencyForm
-                      rawMaterials={rawMaterials || []}
-                      packagingMaterials={packagingMaterials || []}
+                      rawMaterialsList={rawMaterials || []}
+                      packagingItemsList={packagingMaterials || []}
                       onSubmit={handleAddDependency}
                       onCancel={() => setIsAddingDependency(false)}
                       isSubmitting={addDependencyMutation.isPending}
@@ -538,7 +611,7 @@ const SKUDependencyMapping = () => {
                         {dependency.material_type === 'raw' ? 'Raw Material' : 'Packaging'}
                       </TableCell>
                       <TableCell>
-                        {dependency.quantity} {getMaterialUnit(dependency)}
+                        {dependency.quantity_required} {getMaterialUnit(dependency)}
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
@@ -587,15 +660,17 @@ const SKUDependencyMapping = () => {
             </DialogDescription>
           </DialogHeader>
           <DependencyForm
-            rawMaterials={rawMaterials || []}
-            packagingMaterials={packagingMaterials || []}
+            rawMaterialsList={rawMaterials || []}
+            packagingItemsList={packagingMaterials || []}
             onSubmit={handleUpdateDependency}
             onCancel={closeEditModal}
             isSubmitting={updateDependencyMutation.isPending}
             initialData={{
               material_type: currentDependency?.material_type,
-              material_id: currentDependency?.material_id,
-              quantity: currentDependency?.quantity,
+              material_id: currentDependency?.material_type === 'raw' 
+                ? currentDependency?.raw_material_id 
+                : currentDependency?.packaging_item_id,
+              quantity_required: currentDependency?.quantity_required,
             }}
             isEditing
           />
