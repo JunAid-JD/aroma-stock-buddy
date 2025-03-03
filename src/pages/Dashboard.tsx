@@ -6,11 +6,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { AreaChart, BarChart, LineChart } from "recharts";
-import { useAuth } from "@/providers/AuthProvider";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 const Dashboard = () => {
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
 
   // Fetch inventory stats
@@ -53,17 +51,17 @@ const Dashboard = () => {
 
       // Calculate total inventory value
       const rawMaterialsValue = rawMaterials?.reduce(
-        (sum, item) => sum + (parseFloat(item.total_value) || 0), 
+        (sum, item) => sum + (parseFloat(String(item.total_value)) || 0), 
         0
       ) || 0;
       
       const packagingValue = packagingItems?.reduce(
-        (sum, item) => sum + (parseFloat(item.total_value) || 0), 
+        (sum, item) => sum + (parseFloat(String(item.total_value)) || 0), 
         0
       ) || 0;
       
       const finishedProductsValue = finishedProducts?.reduce(
-        (sum, item) => sum + (parseFloat(item.total_value) || 0), 
+        (sum, item) => sum + (parseFloat(String(item.total_value)) || 0), 
         0
       ) || 0;
 
@@ -96,18 +94,20 @@ const Dashboard = () => {
           status,
           created_at,
           product_id,
-          finished_products:product_id (name, sku)
+          finished_products (name, sku)
         `)
         .order("created_at", { ascending: false })
         .limit(5);
 
       if (error) throw error;
       
-      return batches.map(batch => ({
-        ...batch,
-        product_name: batch.finished_products?.name || "Unknown Product",
-        product_sku: batch.finished_products?.sku || "Unknown SKU"
-      }));
+      return batches.map(batch => {
+        return {
+          ...batch,
+          product_name: batch.finished_products?.name || "Unknown Product",
+          product_sku: batch.finished_products?.sku || "Unknown SKU"
+        };
+      });
     },
   });
 
