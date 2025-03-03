@@ -56,7 +56,7 @@ const BatchForm = ({
 
         <div className="space-y-2">
           <Label>Batch Items</Label>
-          {batchItems.map((item, index) => (
+          {Array.isArray(batchItems) && batchItems.map((item, index) => (
             <div key={index} className="flex gap-2 items-end border p-4 rounded-md">
               <div className="flex-1">
                 <Label htmlFor={`product_${index}`}>Finished Product</Label>
@@ -68,7 +68,7 @@ const BatchForm = ({
                     <SelectValue placeholder="Select product" />
                   </SelectTrigger>
                   <SelectContent>
-                    {finishedProducts?.map((product: any) => (
+                    {Array.isArray(finishedProducts) && finishedProducts.map((product: any) => (
                       <SelectItem key={product.id} value={product.id}>
                         {product.name || 'Unknown'} ({product.sku || 'Unknown'})
                       </SelectItem>
@@ -93,7 +93,7 @@ const BatchForm = ({
                 size="icon"
                 className="mb-0.5"
                 onClick={() => onRemoveItem(index)}
-                disabled={batchItems.length <= 1}
+                disabled={!Array.isArray(batchItems) || batchItems.length <= 1}
               >
                 <X className="h-4 w-4" />
               </Button>

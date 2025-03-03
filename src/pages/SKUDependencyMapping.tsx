@@ -155,29 +155,48 @@ const SKUDependencyMapping = () => {
       if (!finishedProductId && formData.fg_sku) {
         console.log("Creating new finished product with SKU:", formData.fg_sku);
         
-        // Create a new finished product first
-        const { data: newProduct, error: productError } = await supabase
+        // First check if a product with this SKU already exists
+        const { data: existingProduct, error: checkError } = await supabase
           .from("finished_products")
-          .insert({
-            sku: formData.fg_sku,
-            name: formData.fg_sku, // Using SKU as name for now
-            quantity_in_stock: 0,
-            unit_price: 0
-          })
-          .select()
-          .single();
+          .select("id")
+          .eq("sku", formData.fg_sku)
+          .maybeSingle();
+        
+        if (checkError) {
+          console.error("Error checking for existing product:", checkError);
+          throw checkError;
+        }
+        
+        if (existingProduct) {
+          // Use the existing product ID
+          finishedProductId = existingProduct.id;
+          console.log("Found existing product with ID:", finishedProductId);
+        } else {
+          // Create a new finished product first
+          const { data: newProduct, error: productError } = await supabase
+            .from("finished_products")
+            .insert({
+              sku: formData.fg_sku,
+              name: formData.fg_name || formData.fg_sku, // Use provided name or SKU as name
+              quantity_in_stock: 0,
+              unit_price: 0,
+              volume_config: formData.volume_config || 'essential_10ml'
+            })
+            .select()
+            .single();
 
-        if (productError) {
-          console.error("Error creating finished product:", productError);
-          throw productError;
+          if (productError) {
+            console.error("Error creating finished product:", productError);
+            throw productError;
+          }
+          
+          if (!newProduct) {
+            throw new Error("Failed to create finished product");
+          }
+          
+          finishedProductId = newProduct.id;
+          console.log("Created new finished product with ID:", finishedProductId);
         }
-        
-        if (!newProduct) {
-          throw new Error("Failed to create finished product");
-        }
-        
-        finishedProductId = newProduct.id;
-        console.log("Created new finished product with ID:", finishedProductId);
       }
 
       if (!finishedProductId) {
