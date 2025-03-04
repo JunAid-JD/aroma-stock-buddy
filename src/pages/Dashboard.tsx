@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CircleAlert, PackagePlus, Package, ShoppingCart, Truck } from "lucide-react";
+import { CircleAlert, PackagePlus, Package, ShoppingCart } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 const Dashboard = () => {
@@ -10,31 +10,51 @@ const Dashboard = () => {
   const { data: inventorySummary } = useQuery({
     queryKey: ["inventorySummary"],
     queryFn: async () => {
-      // Fetch raw materials count
-      const { data: rawCount, error: rawError } = await supabase
+      // Fetch raw materials count and total value
+      const { data: rawMaterials, error: rawError } = await supabase
         .from("raw_materials")
-        .select("id", { count: "exact", head: true });
+        .select("quantity_in_stock, unit_cost, total_value");
       
       if (rawError) throw rawError;
 
-      // Fetch packaging items count
-      const { data: packagingCount, error: packagingError } = await supabase
+      // Fetch packaging items count and total value
+      const { data: packagingItems, error: packagingError } = await supabase
         .from("packaging_items")
-        .select("id", { count: "exact", head: true });
+        .select("quantity_in_stock, unit_cost, total_value");
       
       if (packagingError) throw packagingError;
 
-      // Fetch finished products count
-      const { data: finishedCount, error: finishedError } = await supabase
+      // Fetch finished products count and total value
+      const { data: finishedProducts, error: finishedError } = await supabase
         .from("finished_products")
-        .select("id", { count: "exact", head: true });
+        .select("quantity_in_stock, unit_price, total_value");
       
       if (finishedError) throw finishedError;
 
+      // Calculate total values
+      const rawMaterialsValue = rawMaterials.reduce((sum, item) => 
+        sum + (item.total_value || (item.quantity_in_stock * item.unit_cost)), 0);
+
+      const packagingItemsValue = packagingItems.reduce((sum, item) => 
+        sum + (item.total_value || (item.quantity_in_stock * item.unit_cost)), 0);
+
+      const finishedProductsValue = finishedProducts.reduce((sum, item) => 
+        sum + (item.total_value || (item.quantity_in_stock * item.unit_price)), 0);
+
       return {
-        rawMaterials: rawCount.length,
-        packagingItems: packagingCount.length,
-        finishedProducts: finishedCount.length
+        rawMaterials: {
+          count: rawMaterials.length,
+          value: rawMaterialsValue
+        },
+        packagingItems: {
+          count: packagingItems.length,
+          value: packagingItemsValue
+        },
+        finishedProducts: {
+          count: finishedProducts.length,
+          value: finishedProductsValue
+        },
+        totalValue: rawMaterialsValue + packagingItemsValue + finishedProductsValue
       };
     },
   });
@@ -78,9 +98,7 @@ const Dashboard = () => {
           *,
           production_batch_items (
             quantity,
-            finished_products:item_id (
-              name, sku
-            )
+            item_id
           )
         `)
         .order("production_date", { ascending: false })
@@ -88,16 +106,60 @@ const Dashboard = () => {
       
       if (error) throw error;
       
-      return data.map(batch => ({
-        ...batch,
-        items: batch.production_batch_items || [],
-        productName: batch.production_batch_items?.[0]?.finished_products?.name || "Unknown",
-        productSku: batch.production_batch_items?.[0]?.finished_products?.sku || "Unknown"
-      }));
+      // For each batch, fetch the product details
+      const batchesWithProducts = await Promise.all(
+        data.map(async (batch) => {
+          const productItems = batch.production_batch_items || [];
+          
+          // Get product names for each batch item
+          const productDetails = await Promise.all(
+            productItems.map(async (item: any) => {
+              const { data: product, error } = await supabase
+                .from("finished_products")
+                .select("name, sku")
+                .eq("id", item.item_id)
+                .single();
+              
+              if (error) {
+                console.error("Error fetching product:", error);
+                return { name: "Unknown Product", sku: "Unknown", quantity: item.quantity };
+              }
+              
+              return { 
+                name: product.name, 
+                sku: product.sku, 
+                quantity: item.quantity 
+              };
+            })
+          );
+          
+          // Format the products string
+          const productsString = productDetails
+            .map(p => `${p.name} (${p.quantity})`)
+            .join(", ");
+          
+          return {
+            ...batch,
+            products: productsString || "No products",
+            productDetails
+          };
+        })
+      );
+      
+      return batchesWithProducts;
     },
   });
 
-  // Mock data for charts
+  // Format currency
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+
+  // Mock data for charts (or use real data when available)
   const salesData = [
     { month: 'Jan', sales: 4000 },
     { month: 'Feb', sales: 3000 },
@@ -120,6 +182,9 @@ const Dashboard = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight mb-4">Dashboard</h2>
+        <p className="text-muted-foreground mb-6">
+          Welcome to your inventory management system
+        </p>
       </div>
 
       {/* Overview Cards */}
@@ -127,14 +192,16 @@ const Dashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Raw Materials
+              Raw Materials Value
             </CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inventorySummary?.rawMaterials || 0}</div>
+            <div className="text-2xl font-bold">
+              {inventorySummary ? formatCurrency(inventorySummary.rawMaterials.value) : 'Loading...'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Total unique raw materials
+              Total value in stock
             </p>
           </CardContent>
         </Card>
@@ -142,14 +209,16 @@ const Dashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Packaging Items
+              Packaging Value
             </CardTitle>
             <PackagePlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inventorySummary?.packagingItems || 0}</div>
+            <div className="text-2xl font-bold">
+              {inventorySummary ? formatCurrency(inventorySummary.packagingItems.value) : 'Loading...'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Total unique packaging items
+              Total value in stock
             </p>
           </CardContent>
         </Card>
@@ -157,14 +226,16 @@ const Dashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Finished Products
+              Finished Goods Value
             </CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inventorySummary?.finishedProducts || 0}</div>
+            <div className="text-2xl font-bold">
+              {inventorySummary ? formatCurrency(inventorySummary.finishedProducts.value) : 'Loading...'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Total unique products
+              Total value in stock
             </p>
           </CardContent>
         </Card>
@@ -172,22 +243,99 @@ const Dashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Low Stock Items
+              Total Inventory Value
             </CardTitle>
             <CircleAlert className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {lowStockItems ? 
-                lowStockItems.rawMaterials.length + lowStockItems.packagingItems.length 
-                : 0}
+              {inventorySummary ? formatCurrency(inventorySummary.totalValue) : 'Loading...'}
             </div>
             <p className="text-xs text-muted-foreground">
-              Items below reorder point
+              Combined inventory value
             </p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Low Stock Items */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Low Stock Items</CardTitle>
+          <CardDescription>
+            Items below reorder point ({lowStockItems ? 
+              (lowStockItems.rawMaterials.length + lowStockItems.packagingItems.length) : 0} items)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {lowStockItems && lowStockItems.rawMaterials.length === 0 && lowStockItems.packagingItems.length === 0 && (
+              <p className="text-sm text-muted-foreground">No low stock items</p>
+            )}
+            
+            {lowStockItems?.rawMaterials.slice(0, 3).map((item, index) => (
+              <div key={`raw-${index}`} className="flex items-center justify-between border-b pb-2">
+                <div>
+                  <p className="font-medium">{item.name}</p>
+                  <p className="text-sm text-muted-foreground">Raw Material</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-red-500">{item.quantity_in_stock} in stock</p>
+                  <p className="text-sm text-muted-foreground">Reorder point: {item.reorder_point}</p>
+                </div>
+              </div>
+            ))}
+            
+            {lowStockItems?.packagingItems.slice(0, 3).map((item, index) => (
+              <div key={`pkg-${index}`} className="flex items-center justify-between border-b pb-2">
+                <div>
+                  <p className="font-medium">{item.name}</p>
+                  <p className="text-sm text-muted-foreground">Packaging Item</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-red-500">{item.quantity_in_stock} in stock</p>
+                  <p className="text-sm text-muted-foreground">Reorder point: {item.reorder_point}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Production */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Production</CardTitle>
+          <CardDescription>
+            Latest production batches
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {recentBatches?.length === 0 && (
+              <p className="text-sm text-muted-foreground">No recent production batches</p>
+            )}
+            
+            <div className="grid grid-cols-4 font-medium text-sm mb-2">
+              <div>Batch #</div>
+              <div>Products</div>
+              <div>Date</div>
+              <div>Status</div>
+            </div>
+            
+            {recentBatches?.map((batch) => (
+              <div key={batch.id} className="grid grid-cols-4 text-sm border-b pb-2">
+                <div className="font-medium">{batch.batch_number || `Batch-${batch.id.substring(0, 8)}`}</div>
+                <div>{batch.products}</div>
+                <div>{new Date(batch.production_date).toLocaleDateString()}</div>
+                <div className={`capitalize ${batch.status === 'completed' ? 'text-green-600' : 'text-orange-500'}`}>
+                  {batch.status}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -250,38 +398,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Recent Production */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Production</CardTitle>
-          <CardDescription>
-            Latest production batches
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentBatches?.length === 0 && (
-              <p className="text-sm text-muted-foreground">No recent production batches</p>
-            )}
-            
-            {recentBatches?.map((batch) => (
-              <div key={batch.id} className="flex items-center justify-between border-b pb-2">
-                <div>
-                  <p className="font-medium">{batch.batch_number || "Batch #" + batch.id.substring(0, 8)}</p>
-                  <p className="text-sm text-muted-foreground">{batch.productName || batch.productSku}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium">{batch.status}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(batch.production_date).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

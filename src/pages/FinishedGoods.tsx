@@ -4,244 +4,227 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DialogFooter } from "@/components/ui/dialog";
+import { AlertCircle, Plus } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 const columns = [
   { key: "sku", label: "SKU" },
   { key: "name", label: "Name" },
   { key: "volume_config", label: "Volume" },
-  { key: "quantity_in_stock", label: "Stock" },
-  { key: "unit_price", label: "Unit Price" },
-  { key: "total_value", label: "Total Value" },
+  { key: "quantity_in_stock", label: "Quantity in Stock" },
+  { key: "unit_price", label: "Unit Price", isCurrency: true },
+  { key: "total_value", label: "Total Value", isCurrency: true },
   { key: "updated_at", label: "Last Updated", isDate: true },
 ];
 
+const volumeOptions = [
+  { value: "essential_10ml", label: "10ml Essential Oil" },
+  { value: "essential_30ml", label: "30ml Essential Oil" },
+  { value: "carrier_30ml", label: "30ml Carrier Oil" },
+  { value: "carrier_70ml", label: "70ml Carrier Oil" },
+  { value: "carrier_140ml", label: "140ml Carrier Oil" },
+];
+
 const FinishedGoods = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [sku, setSku] = useState("");
-  const [volumeConfig, setVolumeConfig] = useState("essential_10ml");
-  const [quantityInStock, setQuantityInStock] = useState(0);
+  const [volume, setVolume] = useState<string>("essential_10ml");
+  const [quantity, setQuantity] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasDependency, setHasDependency] = useState(true);
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: finishedProducts, isLoading } = useQuery({
+  const { data: products, isLoading } = useQuery({
     queryKey: ["finishedProducts"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("finished_products")
         .select("*")
-        .order("sku");
+        .order("name");
       
       if (error) throw error;
-      
-      return data.map(item => ({
-        ...item,
-        name: item.name || item.sku,
-        total_value: item.total_value ? `Rs. ${item.total_value.toFixed(2)}` : 'Rs. 0.00',
-        unit_price: item.unit_price ? `Rs. ${item.unit_price.toFixed(2)}` : 'Rs. 0.00',
-        volume_config: item.volume_config.replace(/_/g, ' ').replace(/(\w+)/, (s) => s.charAt(0).toUpperCase() + s.slice(1))
-      }));
+      return data;
     },
   });
 
-  // Check if dependencies exist for a given SKU
   const checkDependency = async (sku: string) => {
     try {
-      // First check if the finished product already exists
-      const { data: existingProduct, error: fpError } = await supabase
+      // First, get the product by SKU
+      const { data: product, error } = await supabase
         .from("finished_products")
         .select("id")
         .eq("sku", sku)
         .maybeSingle();
+      
+      if (error) throw error;
 
-      if (fpError) throw fpError;
-
-      if (existingProduct) {
-        // Check if dependencies exist for this product
+      if (product) {
+        // Check if there are dependencies for this product
         const { data: dependencies, error: depError } = await supabase
           .from("sku_dependencies")
           .select("id")
-          .eq("finished_product_id", existingProduct.id)
+          .eq("finished_product_id", product.id)
           .limit(1);
-
+        
         if (depError) throw depError;
-
-        return dependencies && dependencies.length > 0;
-      } else {
-        // If product doesn't exist, set to false
-        return false;
+        
+        if (dependencies && dependencies.length > 0) {
+          setHasDependency(true);
+          return true;
+        }
       }
+      
+      setHasDependency(false);
+      return false;
     } catch (error) {
-      console.error("Error checking dependency:", error);
+      console.error("Error checking dependencies:", error);
+      setHasDependency(false);
       return false;
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!sku) {
-      toast({
-        title: "Error",
-        description: "SKU is required",
-        variant: "destructive",
-      });
-      return;
-    }
+    setIsSubmitting(true);
 
     try {
-      // Check if dependency exists
-      const hasDep = await checkDependency(sku);
-      setHasDependency(hasDep);
+      // Check if product with this SKU already exists
+      const { data: existingProduct, error: checkError } = await supabase
+        .from("finished_products")
+        .select("*")
+        .eq("sku", sku)
+        .maybeSingle();
+      
+      if (checkError) throw checkError;
 
-      if (!hasDep) {
+      if (existingProduct) {
+        // Update existing product's quantity
+        const { error: updateError } = await supabase
+          .from("finished_products")
+          .update({
+            quantity_in_stock: existingProduct.quantity_in_stock + quantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", existingProduct.id);
+        
+        if (updateError) throw updateError;
+        
         toast({
-          title: "Warning",
-          description: "No dependency mapping found for this SKU. Cost calculation will not be accurate.",
-          variant: "warning",
+          title: "Success",
+          description: "Product quantity updated successfully.",
+        });
+      } else {
+        // Check if there's a dependency mapping for this SKU
+        const hasDep = await checkDependency(sku);
+        
+        if (!hasDep) {
+          toast({
+            title: "Warning",
+            description: "No dependency mapping found for this SKU. Cost calculation may not be accurate.",
+            variant: "destructive",
+          });
+        }
+
+        // Extract name from SKU (simple approach)
+        const name = sku.split('-')[0] || sku;
+        
+        // Create new product
+        const { error: insertError } = await supabase
+          .from("finished_products")
+          .insert({
+            sku: sku,
+            name: name,
+            volume_config: volume as "essential_10ml" | "essential_30ml" | "carrier_30ml" | "carrier_70ml" | "carrier_140ml",
+            quantity_in_stock: quantity,
+            unit_price: 0, // Will be calculated by trigger
+          });
+        
+        if (insertError) throw insertError;
+        
+        toast({
+          title: "Success",
+          description: "Product added successfully.",
         });
       }
 
-      const productData = {
-        sku,
-        name: sku, // Use SKU as name initially, can be updated later
-        volume_config: volumeConfig,
-        quantity_in_stock: quantityInStock,
-        type: volumeConfig.includes('carrier') ? 'carrier_oil' : 'essential_oil' as const
-      };
-
-      if (selectedItem) {
-        const { error } = await supabase
-          .from("finished_products")
-          .update({
-            ...productData,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", selectedItem.id);
-        
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("finished_products")
-          .insert(productData);
-        
-        if (error) throw error;
-      }
-
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
-      
-      toast({
-        title: "Success",
-        description: `Finished product ${selectedItem ? "updated" : "added"} successfully.`,
-      });
-      
-      resetForm();
+      await queryClient.invalidateQueries({ queryKey: ["inventorySummary"] });
+      setIsAddDialogOpen(false);
+      clearForm();
     } catch (error: any) {
       console.error("Error:", error);
       toast({
         title: "Error",
-        description: error.message || "Something went wrong. Please try again.",
+        description: error.message || "Failed to add product.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setIsDialogOpen(false);
-    setSelectedItem(null);
-    setSku("");
-    setVolumeConfig("essential_10ml");
-    setQuantityInStock(0);
-    setHasDependency(true);
-  };
-
-  const handleDelete = async () => {
-    if (!selectedItem) return;
+  const handleDeleteProduct = async () => {
+    if (!selectedProduct) return;
 
     try {
-      // First, delete any dependencies
-      const { error: dependencyError } = await supabase
-        .from("sku_dependencies")
-        .delete()
-        .eq("finished_product_id", selectedItem.id);
-      
-      if (dependencyError) throw dependencyError;
-
-      // Then delete production batch items
-      const { error: batchItemsError } = await supabase
-        .from("production_batch_items")
-        .delete()
-        .eq("item_id", selectedItem.id);
-      
-      if (batchItemsError) throw batchItemsError;
-
-      // Finally delete the product
       const { error } = await supabase
         .from("finished_products")
         .delete()
-        .eq("id", selectedItem.id);
+        .eq("id", selectedProduct.id);
       
       if (error) throw error;
-
+      
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      await queryClient.invalidateQueries({ queryKey: ["inventorySummary"] });
+      
       toast({
         title: "Success",
-        description: "Item deleted successfully.",
+        description: "Product deleted successfully.",
       });
+      
       setIsDeleteDialogOpen(false);
-      setSelectedItem(null);
+      setSelectedProduct(null);
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete item.",
+        description: error.message || "Failed to delete product.",
         variant: "destructive",
       });
     }
   };
 
-  const handleAdd = () => {
-    setSelectedItem(null);
+  const clearForm = () => {
     setSku("");
-    setVolumeConfig("essential_10ml");
-    setQuantityInStock(0);
+    setVolume("essential_10ml");
+    setQuantity(0);
     setHasDependency(true);
-    setIsDialogOpen(true);
   };
 
-  const handleEdit = (item: any) => {
-    setSelectedItem(item);
-    setSku(item.sku);
-    setVolumeConfig(item.volume_config.toLowerCase().replace(/\s+/g, '_'));
-    setQuantityInStock(item.quantity_in_stock);
-    
-    // Check for dependency
-    checkDependency(item.sku).then(setHasDependency);
-    
-    setIsDialogOpen(true);
+  const handleAddClick = () => {
+    clearForm();
+    setIsAddDialogOpen(true);
   };
 
-  const handleDeleteClick = (item: any) => {
-    setSelectedItem(item);
+  const handleSkuChange = async (newSku: string) => {
+    setSku(newSku);
+    if (newSku.length > 3) {
+      await checkDependency(newSku);
+    }
+  };
+
+  const handleDeleteClick = (product: any) => {
+    setSelectedProduct(product);
     setIsDeleteDialogOpen(true);
   };
 
@@ -251,94 +234,86 @@ const FinishedGoods = () => {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Finished Goods</h2>
           <p className="text-muted-foreground">
-            Manage your finished products inventory
+            Manage finished product inventory
           </p>
         </div>
-        <Button onClick={handleAdd}>
+        <Button onClick={handleAddClick}>
           <Plus className="mr-2 h-4 w-4" />
-          Add Finished Product
+          Add Product
         </Button>
       </div>
       <DataTable
         columns={columns}
-        data={finishedProducts || []}
+        data={products || []}
         isLoading={isLoading}
-        onEdit={handleEdit}
         onDelete={handleDeleteClick}
       />
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {selectedItem ? "Edit" : "Add"} Finished Product
-            </DialogTitle>
+            <DialogTitle>Add Finished Product</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="sku">SKU</Label>
-                <Input
-                  id="sku"
-                  value={sku}
-                  onChange={(e) => setSku(e.target.value)}
-                  placeholder="Enter product SKU"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="volume_config">Volume</Label>
-                <Select
-                  value={volumeConfig}
-                  onValueChange={setVolumeConfig}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select volume" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="essential_10ml">10ml (Essential Oil)</SelectItem>
-                    <SelectItem value="essential_30ml">30ml (Essential Oil)</SelectItem>
-                    <SelectItem value="carrier_30ml">30ml (Carrier Oil)</SelectItem>
-                    <SelectItem value="carrier_70ml">70ml (Carrier Oil)</SelectItem>
-                    <SelectItem value="carrier_140ml">140ml (Carrier Oil)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="quantity_in_stock">Quantity in Stock</Label>
-                <Input
-                  id="quantity_in_stock"
-                  type="number"
-                  min="0"
-                  value={quantityInStock}
-                  onChange={(e) => setQuantityInStock(parseInt(e.target.value) || 0)}
-                  required
-                />
-              </div>
-
-              {!hasDependency && (
-                <Alert variant="warning">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>No dependency mapping found</AlertTitle>
-                  <AlertDescription>
-                    Please add dependency mapping for this SKU in the SKU Dependency Mapping page to enable accurate cost calculation.
-                  </AlertDescription>
-                </Alert>
-              )}
+          <form onSubmit={handleAddProduct} className="space-y-4">
+            <div>
+              <Label htmlFor="sku">SKU</Label>
+              <Input
+                id="sku"
+                value={sku}
+                onChange={(e) => handleSkuChange(e.target.value)}
+                required
+              />
             </div>
 
-            <DialogFooter className="mt-6">
+            <div>
+              <Label htmlFor="volume">Volume Configuration</Label>
+              <Select value={volume} onValueChange={setVolume} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select volume" />
+                </SelectTrigger>
+                <SelectContent>
+                  {volumeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="quantity">Quantity in Stock</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="0"
+                value={quantity}
+                onChange={(e) => setQuantity(parseInt(e.target.value))}
+                required
+              />
+            </div>
+
+            {!hasDependency && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>No dependency mapping found</AlertTitle>
+                <AlertDescription>
+                  This SKU doesn't have a dependency mapping. The cost calculation may not be accurate. Consider adding a dependency first.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
-                onClick={resetForm}
+                onClick={() => setIsAddDialogOpen(false)}
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
-              <Button type="submit">
-                {selectedItem ? "Update" : "Create"}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Add Product"}
               </Button>
             </DialogFooter>
           </form>
@@ -350,15 +325,15 @@ const FinishedGoods = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the finished product
-              and all associated records.
+              This action cannot be undone. This will permanently delete the product
+              and may affect production records and dependency mappings.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogAction onClick={handleDeleteProduct} className="bg-red-500 hover:bg-red-600">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

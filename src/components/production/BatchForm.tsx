@@ -78,7 +78,7 @@ const BatchForm = ({
             // Get finished products referenced in dependencies
             const { data: dependencyProducts, error } = await supabase
               .from("finished_products")
-              .select("id, name")
+              .select("id, name, sku")
               .in("id", dependencyOnlyProductIds);
             
             if (error) throw error;
@@ -126,7 +126,7 @@ const BatchForm = ({
         />
 
         {!hasValidProducts && (
-          <Alert variant="warning">
+          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Warning</AlertTitle>
             <AlertDescription>

@@ -8,10 +8,14 @@ import { PlusCircle, X } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 
-interface Component {
-  id: string;
-  type: "raw_material" | "packaging";
-  quantity: number;
+interface RawMaterialComponent {
+  raw_material_id: string;
+  quantity_required: number;
+}
+
+interface PackagingComponent {
+  packaging_item_id: string;
+  quantity_required: number;
 }
 
 interface SKUDependencyFormProps {
@@ -34,11 +38,11 @@ const SKUDependencyForm = ({
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [finishedProductId, setFinishedProductId] = useState<string>("");
-  const [rawMaterialComponents, setRawMaterialComponents] = useState<Component[]>([
-    { id: "", type: "raw_material", quantity: 0 }
+  const [rawMaterialComponents, setRawMaterialComponents] = useState<RawMaterialComponent[]>([
+    { raw_material_id: "", quantity_required: 1 }
   ]);
-  const [packagingComponents, setPackagingComponents] = useState<Component[]>([
-    { id: "", type: "packaging", quantity: 0 }
+  const [packagingComponents, setPackagingComponents] = useState<PackagingComponent[]>([
+    { packaging_item_id: "", quantity_required: 1 }
   ]);
 
   useEffect(() => {
@@ -46,26 +50,16 @@ const SKUDependencyForm = ({
       // Set finished product ID
       setFinishedProductId(selectedDependency.finished_product_id);
 
-      // Load raw material components
-      const rawComponents = selectedDependency.raw_materials?.map((item: any) => ({
-        id: item.raw_material_id,
-        type: "raw_material",
-        quantity: item.quantity_required
-      })) || [];
-      
-      if (rawComponents.length > 0) {
-        setRawMaterialComponents(rawComponents);
-      }
-
-      // Load packaging components
-      const pkgComponents = selectedDependency.packaging_items?.map((item: any) => ({
-        id: item.packaging_item_id,
-        type: "packaging",
-        quantity: item.quantity_required
-      })) || [];
-      
-      if (pkgComponents.length > 0) {
-        setPackagingComponents(pkgComponents);
+      if (selectedDependency.component_type === "raw_material") {
+        setRawMaterialComponents([{
+          raw_material_id: selectedDependency.raw_material_id || "",
+          quantity_required: selectedDependency.quantity_required || 1
+        }]);
+      } else if (selectedDependency.component_type === "packaging") {
+        setPackagingComponents([{
+          packaging_item_id: selectedDependency.packaging_item_id || "",
+          quantity_required: selectedDependency.quantity_required || 1
+        }]);
       }
     }
   }, [selectedDependency]);
@@ -82,8 +76,8 @@ const SKUDependencyForm = ({
       return;
     }
     
-    const validRawMaterials = rawMaterialComponents.filter(item => item.id && item.quantity > 0);
-    const validPackagingItems = packagingComponents.filter(item => item.id && item.quantity > 0);
+    const validRawMaterials = rawMaterialComponents.filter(item => item.raw_material_id && item.quantity_required > 0);
+    const validPackagingItems = packagingComponents.filter(item => item.packaging_item_id && item.quantity_required > 0);
     
     if (validRawMaterials.length === 0 && validPackagingItems.length === 0) {
       toast({
@@ -99,16 +93,8 @@ const SKUDependencyForm = ({
     try {
       const formData = {
         finished_product_id: finishedProductId,
-        raw_materials: validRawMaterials.map(item => ({
-          raw_material_id: item.id,
-          quantity_required: item.quantity,
-          component_type: "raw_material"
-        })),
-        packaging_items: validPackagingItems.map(item => ({
-          packaging_item_id: item.id,
-          quantity_required: item.quantity,
-          component_type: "packaging"
-        }))
+        raw_materials: validRawMaterials,
+        packaging_items: validPackagingItems
       };
       
       await onSubmit(formData);
@@ -127,7 +113,7 @@ const SKUDependencyForm = ({
   const addRawMaterial = () => {
     setRawMaterialComponents([
       ...rawMaterialComponents,
-      { id: "", type: "raw_material", quantity: 0 }
+      { raw_material_id: "", quantity_required: 1 }
     ]);
   };
 
@@ -139,7 +125,7 @@ const SKUDependencyForm = ({
     }
   };
 
-  const updateRawMaterial = (index: number, field: keyof Component, value: any) => {
+  const updateRawMaterial = (index: number, field: keyof RawMaterialComponent, value: any) => {
     const updated = [...rawMaterialComponents];
     updated[index] = { ...updated[index], [field]: value };
     setRawMaterialComponents(updated);
@@ -148,7 +134,7 @@ const SKUDependencyForm = ({
   const addPackagingItem = () => {
     setPackagingComponents([
       ...packagingComponents,
-      { id: "", type: "packaging", quantity: 0 }
+      { packaging_item_id: "", quantity_required: 1 }
     ]);
   };
 
@@ -160,7 +146,7 @@ const SKUDependencyForm = ({
     }
   };
 
-  const updatePackagingItem = (index: number, field: keyof Component, value: any) => {
+  const updatePackagingItem = (index: number, field: keyof PackagingComponent, value: any) => {
     const updated = [...packagingComponents];
     updated[index] = { ...updated[index], [field]: value };
     setPackagingComponents(updated);
@@ -174,6 +160,7 @@ const SKUDependencyForm = ({
           <Select
             value={finishedProductId}
             onValueChange={setFinishedProductId}
+            disabled={!!selectedDependency}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select finished product" />
@@ -196,8 +183,8 @@ const SKUDependencyForm = ({
               <div className="flex-1">
                 <Label>Raw Material</Label>
                 <Select
-                  value={component.id}
-                  onValueChange={(value) => updateRawMaterial(index, "id", value)}
+                  value={component.raw_material_id}
+                  onValueChange={(value) => updateRawMaterial(index, "raw_material_id", value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select raw material" />
@@ -216,10 +203,10 @@ const SKUDependencyForm = ({
                 <Label>Quantity</Label>
                 <Input
                   type="number"
-                  min="0"
+                  min="0.01"
                   step="0.01"
-                  value={component.quantity}
-                  onChange={(e) => updateRawMaterial(index, "quantity", parseFloat(e.target.value) || 0)}
+                  value={component.quantity_required}
+                  onChange={(e) => updateRawMaterial(index, "quantity_required", parseFloat(e.target.value) || 0)}
                 />
               </div>
               
@@ -254,8 +241,8 @@ const SKUDependencyForm = ({
               <div className="flex-1">
                 <Label>Packaging Item</Label>
                 <Select
-                  value={component.id}
-                  onValueChange={(value) => updatePackagingItem(index, "id", value)}
+                  value={component.packaging_item_id}
+                  onValueChange={(value) => updatePackagingItem(index, "packaging_item_id", value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select packaging item" />
@@ -274,10 +261,10 @@ const SKUDependencyForm = ({
                 <Label>Quantity</Label>
                 <Input
                   type="number"
-                  min="0"
+                  min="0.01"
                   step="0.01"
-                  value={component.quantity}
-                  onChange={(e) => updatePackagingItem(index, "quantity", parseFloat(e.target.value) || 0)}
+                  value={component.quantity_required}
+                  onChange={(e) => updatePackagingItem(index, "quantity_required", parseFloat(e.target.value) || 0)}
                 />
               </div>
               

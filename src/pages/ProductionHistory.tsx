@@ -170,20 +170,22 @@ const ProductionHistory = () => {
         if (deleteError) throw deleteError;
 
         // Insert new items
-        const { error: itemsError } = await supabase
-          .from("production_batch_items")
-          .insert(
-            batchItems
-              .filter(item => item.product_id && item.quantity > 0)
-              .map(item => ({
-                batch_id: selectedBatch.id,
-                item_id: item.product_id,
-                quantity: item.quantity,
-                item_type: 'finished_product'
-              }))
-          );
+        const batchItemsData = batchItems
+          .filter(item => item.product_id && item.quantity > 0)
+          .map(item => ({
+            batch_id: selectedBatch.id,
+            item_id: item.product_id,
+            quantity: item.quantity,
+            item_type: 'finished_product' as const
+          }));
 
-        if (itemsError) throw itemsError;
+        if (batchItemsData.length > 0) {
+          const { error: itemsError } = await supabase
+            .from("production_batch_items")
+            .insert(batchItemsData);
+
+          if (itemsError) throw itemsError;
+        }
 
       } else {
         // Create new batch
@@ -196,26 +198,29 @@ const ProductionHistory = () => {
         if (batchError) throw batchError;
 
         // Insert batch items
-        const { error: itemsError } = await supabase
-          .from("production_batch_items")
-          .insert(
-            batchItems
-              .filter(item => item.product_id && item.quantity > 0)
-              .map(item => ({
-                batch_id: newBatch.id,
-                item_id: item.product_id,
-                quantity: item.quantity,
-                item_type: 'finished_product'
-              }))
-          );
+        const batchItemsData = batchItems
+          .filter(item => item.product_id && item.quantity > 0)
+          .map(item => ({
+            batch_id: newBatch.id,
+            item_id: item.product_id,
+            quantity: item.quantity,
+            item_type: 'finished_product' as const
+          }));
 
-        if (itemsError) throw itemsError;
+        if (batchItemsData.length > 0) {
+          const { error: itemsError } = await supabase
+            .from("production_batch_items")
+            .insert(batchItemsData);
+
+          if (itemsError) throw itemsError;
+        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
       await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
       await queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
+      await queryClient.invalidateQueries({ queryKey: ["inventorySummary"] });
       
       toast({
         title: "Success",
@@ -294,6 +299,8 @@ const ProductionHistory = () => {
       if (batchError) throw batchError;
 
       await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
+      await queryClient.invalidateQueries({ queryKey: ["inventorySummary"] });
+      
       toast({
         title: "Success",
         description: "Production batch deleted successfully.",
