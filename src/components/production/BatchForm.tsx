@@ -36,8 +36,7 @@ const BatchForm = ({
 }: BatchFormProps) => {
   // Helper function to get finished product name by ID
   const getProductNameById = (id: string) => {
-    if (!id || !finishedProducts) return "Unknown product";
-    const product = finishedProducts.find(p => p.id === id);
+    const product = finishedProducts?.find(p => p.id === id);
     return product ? product.name : "Unknown product";
   };
   
@@ -57,7 +56,7 @@ const BatchForm = ({
 
         <div className="space-y-2">
           <Label>Batch Items</Label>
-          {Array.isArray(batchItems) && batchItems.map((item, index) => (
+          {batchItems.map((item, index) => (
             <div key={index} className="flex gap-2 items-end border p-4 rounded-md">
               <div className="flex-1">
                 <Label htmlFor={`product_${index}`}>Finished Product</Label>
@@ -69,9 +68,9 @@ const BatchForm = ({
                     <SelectValue placeholder="Select product" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.isArray(finishedProducts) && finishedProducts.map((product: any) => (
+                    {finishedProducts?.map((product: any) => (
                       <SelectItem key={product.id} value={product.id}>
-                        {product.name || 'Unknown'} ({product.sku || 'Unknown'})
+                        {product.name} ({product.sku})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -82,7 +81,7 @@ const BatchForm = ({
                 <Input
                   id={`quantity_${index}`}
                   type="number"
-                  value={item.quantity || 0}
+                  value={item.quantity}
                   onChange={(e) => onUpdateItem(index, 'quantity', parseInt(e.target.value) || 0)}
                   min="1"
                   required
@@ -94,7 +93,7 @@ const BatchForm = ({
                 size="icon"
                 className="mb-0.5"
                 onClick={() => onRemoveItem(index)}
-                disabled={!Array.isArray(batchItems) || batchItems.length <= 1}
+                disabled={batchItems.length <= 1}
               >
                 <X className="h-4 w-4" />
               </Button>
