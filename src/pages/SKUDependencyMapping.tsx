@@ -2,113 +2,115 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import DataTable from "@/components/DataTable";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import SKUDependencyForm from "@/components/SKUDependencyForm";
+import DataTable from "@/components/DataTable";
 import { Input } from "@/components/ui/input";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const columns = [
-  { key: "finished_product_name", label: "Finished Product" },
-  { key: "component_type", label: "Component Type" },
-  { key: "component_name", label: "Component Name" },
-  { key: "quantity_required", label: "Quantity Required" },
-  { key: "updated_at", label: "Last Updated", isDate: true },
+  { key: "product_sku", label: "FG SKU" },
+  { key: "component_name", label: "Components" },
+  { key: "created_at", label: "Created At", isDate: true },
+  { key: "updated_at", label: "Updated At", isDate: true },
 ];
 
 const SKUDependencyMapping = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedDependency, setSelectedDependency] = useState<any>(null);
-  const queryClient = useQueryClient();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const { data: dependencies, isLoading } = useQuery({
-    queryKey: ["dependencies"],
+  // Fetch all dependencies with joined data
+  const { data: skuDependencies, isLoading } = useQuery({
+    queryKey: ["skuDependencies"],
     queryFn: async () => {
-      // Get all dependencies
-      const { data: rawDependencies, error: rawError } = await supabase
+      const { data, error } = await supabase
         .from("sku_dependencies")
         .select(`
           id,
-          finished_product_id,
           component_type,
           quantity_required,
+          created_at,
           updated_at,
-          raw_material_id,
-          packaging_item_id,
           finished_products:finished_product_id(id, name, sku),
           raw_materials:raw_material_id(id, name, sku),
-          packaging_items:packaging_item_id(id, name, sku, type, size)
+          packaging_items:packaging_item_id(id, name, type, size)
         `)
-        .order("finished_product_id");
+        .order("created_at", { ascending: false });
 
-      if (rawError) throw rawError;
+      if (error) throw error;
 
-      // Transform the data for the table view
-      const transformedData = rawDependencies.map(dep => {
-        let componentName = "";
-        let componentType = dep.component_type;
+      // Transform data for table display
+      return data.map((dependency) => {
+        const finished_product = dependency.finished_products;
+        const raw_material = dependency.raw_materials;
+        const packaging_item = dependency.packaging_items;
 
-        if (dep.component_type === "raw_material" && dep.raw_materials) {
-          componentName = dep.raw_materials.name || dep.raw_materials.sku;
-        } else if (dep.component_type === "packaging" && dep.packaging_items) {
-          componentName = dep.packaging_items.name || dep.packaging_items.sku;
+        let component_name = "";
+        let product_sku = "";
+
+        if (finished_product) {
+          product_sku = finished_product.sku;
+        }
+
+        if (dependency.component_type === "raw_material" && raw_material) {
+          component_name = `${raw_material.name} (${dependency.quantity_required} ${raw_material.sku})`;
+        } else if (dependency.component_type === "packaging" && packaging_item) {
+          component_name = `${packaging_item.name} (${dependency.quantity_required} ${packaging_item.type})`;
         }
 
         return {
-          id: dep.id,
-          finished_product_id: dep.finished_product_id,
-          finished_product_name: dep.finished_products?.name || "Unknown",
-          component_type: componentType,
-          component_name: componentName,
-          quantity_required: dep.quantity_required,
-          updated_at: dep.updated_at,
-          raw_material_id: dep.raw_material_id,
-          packaging_item_id: dep.packaging_item_id,
+          id: dependency.id,
+          product_sku,
+          component_name,
+          component_type: dependency.component_type,
+          quantity_required: dependency.quantity_required,
+          finished_product_id: finished_product?.id,
+          finished_product_name: finished_product?.name,
+          raw_material_id: raw_material?.id,
+          packaging_item_id: packaging_item?.id,
+          created_at: dependency.created_at,
+          updated_at: dependency.updated_at,
         };
       });
-
-      return transformedData;
     },
   });
 
+  // Fetch raw materials for form
   const { data: rawMaterials } = useQuery({
     queryKey: ["rawMaterials"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("raw_materials")
-        .select("id, name, sku, unit_cost")
+        .select("id, name, sku, type")
         .order("name");
+
       if (error) throw error;
       return data;
     },
   });
 
+  // Fetch packaging items for form
   const { data: packagingItems } = useQuery({
     queryKey: ["packagingItems"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("packaging_items")
-        .select("id, name, sku, type, size, unit_cost")
+        .select("id, name, sku, type, size")
         .order("name");
+
       if (error) throw error;
       return data;
     },
   });
 
+  // Fetch finished products for form
   const { data: finishedProducts } = useQuery({
     queryKey: ["finishedProducts"],
     queryFn: async () => {
@@ -116,129 +118,149 @@ const SKUDependencyMapping = () => {
         .from("finished_products")
         .select("id, name, sku")
         .order("name");
+
       if (error) throw error;
       return data;
     },
   });
 
-  const handleSubmit = async (formData: any) => {
-    try {
-      if (selectedDependency) {
-        // Update existing dependency
-        const { error: updateError } = await supabase
-          .from("sku_dependencies")
-          .update({
-            quantity_required: formData.quantity_required,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", selectedDependency.id);
-        
-        if (updateError) throw updateError;
-      } else {
-        // Insert raw materials
-        if (formData.raw_materials && formData.raw_materials.length > 0) {
-          const rawMaterialsData = formData.raw_materials
-            .filter((item: any) => item.raw_material_id && item.quantity_required > 0)
-            .map((item: any) => ({
-              finished_product_id: formData.finished_product_id,
-              raw_material_id: item.raw_material_id,
-              quantity_required: item.quantity_required,
-              component_type: 'raw_material' as const
-            }));
-
-          if (rawMaterialsData.length > 0) {
-            const { error: rawInsertError } = await supabase
-              .from("sku_dependencies")
-              .insert(rawMaterialsData);
-            
-            if (rawInsertError) throw rawInsertError;
-          }
-        }
-
-        // Insert packaging items
-        if (formData.packaging_items && formData.packaging_items.length > 0) {
-          const packagingItemsData = formData.packaging_items
-            .filter((item: any) => item.packaging_item_id && item.quantity_required > 0)
-            .map((item: any) => ({
-              finished_product_id: formData.finished_product_id,
-              packaging_item_id: item.packaging_item_id,
-              quantity_required: item.quantity_required,
-              component_type: 'packaging' as const
-            }));
-
-          if (packagingItemsData.length > 0) {
-            const { error: packagingInsertError } = await supabase
-              .from("sku_dependencies")
-              .insert(packagingItemsData);
-            
-            if (packagingInsertError) throw packagingInsertError;
-          }
-        }
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["dependencies"] });
-      
-      toast({
-        title: "Success",
-        description: `Dependency ${selectedDependency ? "updated" : "created"} successfully.`,
-      });
-      
-      setIsDialogOpen(false);
-      setSelectedDependency(null);
-    } catch (error: any) {
-      console.error("Error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save dependency.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!selectedDependency) return;
-
-    try {
-      // Delete the dependency
-      const { error: deleteError } = await supabase
-        .from("sku_dependencies")
-        .delete()
-        .eq("id", selectedDependency.id);
-      
-      if (deleteError) throw deleteError;
-
-      await queryClient.invalidateQueries({ queryKey: ["dependencies"] });
-      
-      toast({
-        title: "Success",
-        description: "Dependency deleted successfully.",
-      });
-      
-      setIsDeleteDialogOpen(false);
-      setSelectedDependency(null);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete dependency.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleAdd = () => {
     setSelectedDependency(null);
-    setIsDialogOpen(true);
+    setIsFormOpen(true);
   };
 
   const handleEdit = (dependency: any) => {
     setSelectedDependency(dependency);
-    setIsDialogOpen(true);
+    setIsFormOpen(true);
   };
 
-  const handleDeleteClick = (dependency: any) => {
+  const handleDelete = (dependency: any) => {
     setSelectedDependency(dependency);
     setIsDeleteDialogOpen(true);
   };
+
+  const confirmDelete = async () => {
+    if (!selectedDependency) return;
+
+    try {
+      const { error } = await supabase
+        .from("sku_dependencies")
+        .delete()
+        .eq("id", selectedDependency.id);
+
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
+      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      
+      toast({
+        title: "Dependency deleted",
+        description: "SKU dependency has been deleted successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete dependency",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
+  const handleFormSubmit = async (formData: any) => {
+    try {
+      // If it's an update to an existing dependency
+      if (selectedDependency) {
+        const { error } = await supabase
+          .from("sku_dependencies")
+          .update({
+            quantity_required: formData.quantity_required,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", formData.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Dependency updated",
+          description: "SKU dependency has been updated successfully",
+        });
+      } else {
+        // For new dependencies, process each component type separately
+        const { finished_product_id, raw_materials, packaging_items } = formData;
+
+        // Insert raw material dependencies
+        if (raw_materials && raw_materials.length > 0) {
+          const rawMaterialInserts = raw_materials
+            .filter((item: any) => item.raw_material_id && item.quantity_required > 0)
+            .map((item: any) => ({
+              finished_product_id,
+              raw_material_id: item.raw_material_id,
+              component_type: "raw_material",
+              item_type: "raw_material",
+              quantity_required: item.quantity_required,
+            }));
+
+          if (rawMaterialInserts.length > 0) {
+            const { error: rawError } = await supabase
+              .from("sku_dependencies")
+              .insert(rawMaterialInserts);
+
+            if (rawError) throw rawError;
+          }
+        }
+
+        // Insert packaging dependencies
+        if (packaging_items && packaging_items.length > 0) {
+          const packagingInserts = packaging_items
+            .filter((item: any) => item.packaging_item_id && item.quantity_required > 0)
+            .map((item: any) => ({
+              finished_product_id,
+              packaging_item_id: item.packaging_item_id,
+              component_type: "packaging",
+              item_type: "packaging",
+              quantity_required: item.quantity_required,
+            }));
+
+          if (packagingInserts.length > 0) {
+            const { error: pkgError } = await supabase
+              .from("sku_dependencies")
+              .insert(packagingInserts);
+
+            if (pkgError) throw pkgError;
+          }
+        }
+
+        toast({
+          title: "Dependencies created",
+          description: "SKU dependencies have been created successfully",
+        });
+      }
+
+      // Invalidate queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ["skuDependencies"] });
+      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+
+      // Close the form
+      setIsFormOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save dependency",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Filter dependencies by search query
+  const filteredDependencies = searchQuery
+    ? skuDependencies?.filter(
+        (dep) =>
+          dep.product_sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          dep.component_name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : skuDependencies;
 
   return (
     <div className="space-y-6">
@@ -246,7 +268,7 @@ const SKUDependencyMapping = () => {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">SKU Dependency Mapping</h2>
           <p className="text-muted-foreground">
-            Manage relationships between finished products and their components
+            Map finished products to their raw material and packaging requirements
           </p>
         </div>
         <Button onClick={handleAdd}>
@@ -255,37 +277,40 @@ const SKUDependencyMapping = () => {
         </Button>
       </div>
 
-      <div className="bg-white rounded-md border p-4">
-        <div className="pb-4">
-          <Input 
-            placeholder="Search..." 
-            className="max-w-sm" 
-          />
-        </div>
-        <DataTable
-          columns={columns}
-          data={dependencies || []}
-          isLoading={isLoading}
-          onEdit={handleEdit}
-          onDelete={handleDeleteClick}
+      <div className="flex items-center mb-4">
+        <Input
+          placeholder="Search..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-sm"
         />
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedDependency ? "Edit" : "Add"} SKU Dependency
-            </DialogTitle>
-          </DialogHeader>
-          <SKUDependencyForm
-            onSubmit={handleSubmit}
-            onClose={() => setIsDialogOpen(false)}
-            selectedDependency={selectedDependency}
-            rawMaterials={rawMaterials || []}
-            packagingItems={packagingItems || []}
-            finishedProducts={finishedProducts || []}
-          />
+      <DataTable
+        columns={columns}
+        data={filteredDependencies || []}
+        isLoading={isLoading}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="max-w-xl">
+          {!selectedDependency && (
+            <DialogHeader>
+              <DialogTitle>Add SKU Dependency</DialogTitle>
+            </DialogHeader>
+          )}
+          {rawMaterials && packagingItems && finishedProducts && (
+            <SKUDependencyForm
+              onSubmit={handleFormSubmit}
+              onClose={() => setIsFormOpen(false)}
+              selectedDependency={selectedDependency}
+              rawMaterials={rawMaterials}
+              packagingItems={packagingItems}
+              finishedProducts={finishedProducts}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -294,14 +319,13 @@ const SKUDependencyMapping = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete this dependency.
+              This action cannot be undone. This will permanently delete the
+              selected dependency and may affect inventory calculations.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

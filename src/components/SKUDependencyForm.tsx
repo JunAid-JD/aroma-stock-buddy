@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DialogFooter } from "@/components/ui/dialog";
+import { DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Trash } from "lucide-react";
+import { Plus, Trash, X } from "lucide-react";
 
 interface RawMaterialItem {
   raw_material_id: string;
@@ -37,10 +37,10 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
 }) => {
   const [finishedProductId, setFinishedProductId] = useState<string>("");
   const [rawMaterialItems, setRawMaterialItems] = useState<RawMaterialItem[]>([
-    { raw_material_id: "", quantity_required: 0 }
+    { raw_material_id: "", quantity_required: 1 }
   ]);
   const [packagingItemsList, setPackagingItemsList] = useState<PackagingItem[]>([
-    { packaging_item_id: "", quantity_required: 0 }
+    { packaging_item_id: "", quantity_required: 1 }
   ]);
   const [skuInput, setSkuInput] = useState<string>("");
   const { toast } = useToast();
@@ -58,7 +58,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
             quantity_required: selectedDependency.quantity_required,
           },
         ]);
-        setPackagingItemsList([{ packaging_item_id: "", quantity_required: 0 }]);
+        setPackagingItemsList([{ packaging_item_id: "", quantity_required: 1 }]);
       } else if (selectedDependency.component_type === "packaging") {
         setPackagingItemsList([
           {
@@ -66,7 +66,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
             quantity_required: selectedDependency.quantity_required,
           },
         ]);
-        setRawMaterialItems([{ raw_material_id: "", quantity_required: 0 }]);
+        setRawMaterialItems([{ raw_material_id: "", quantity_required: 1 }]);
       }
     }
   }, [selectedDependency]);
@@ -113,15 +113,15 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     // Submit the form with all components
     onSubmit({
       finished_product_id: finishedProductId,
-      raw_materials: rawMaterialItems,
-      packaging_items: packagingItemsList,
+      raw_materials: rawMaterialItems.filter(item => item.raw_material_id),
+      packaging_items: packagingItemsList.filter(item => item.packaging_item_id),
     });
   };
 
   const addRawMaterialItem = () => {
     setRawMaterialItems([
       ...rawMaterialItems,
-      { raw_material_id: "", quantity_required: 0 },
+      { raw_material_id: "", quantity_required: 1 },
     ]);
   };
 
@@ -144,7 +144,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
   const addPackagingItem = () => {
     setPackagingItemsList([
       ...packagingItemsList,
-      { packaging_item_id: "", quantity_required: 0 },
+      { packaging_item_id: "", quantity_required: 1 },
     ]);
   };
 
@@ -181,8 +181,19 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="grid gap-4 py-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {!selectedDependency && (
+        <div>
+          <DialogHeader>
+            <DialogTitle>Add SKU Dependency</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mt-2">
+            Define the components required to produce a finished product.
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-4">
         {selectedDependency ? (
           <div>
             <p className="text-sm font-medium mb-2">
@@ -195,167 +206,184 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         ) : (
           <>
             <div className="space-y-2">
-              <Label htmlFor="skuInput">Search by SKU</Label>
-              <div className="flex space-x-2">
-                <Input
-                  id="skuInput"
-                  value={skuInput}
-                  onChange={(e) => setSkuInput(e.target.value)}
-                  placeholder="Enter product SKU"
-                />
+              <Label htmlFor="finished_product_sku">Finished Product SKU</Label>
+              <Input
+                id="skuInput"
+                value={skuInput}
+                onChange={(e) => setSkuInput(e.target.value)}
+                placeholder="Enter finished product SKU"
+                className="mb-2"
+              />
+              
+              <div className="flex justify-between">
+                <Select
+                  value={finishedProductId}
+                  onValueChange={setFinishedProductId}
+                >
+                  <SelectTrigger id="finished_product_id">
+                    <SelectValue placeholder="Or select a product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {finishedProducts.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name} ({product.sku})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   onClick={searchProductBySku}
-                  variant="secondary"
+                  variant="outline"
+                  className="ml-2"
                 >
                   Find
                 </Button>
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="finished_product_id">Finished Product</Label>
-              <Select
-                value={finishedProductId}
-                onValueChange={setFinishedProductId}
+            <div className="space-y-4 pt-4 border-t">
+              <Label className="text-base font-medium">Raw Materials</Label>
+              
+              {rawMaterialItems.map((item, index) => (
+                <div key={`raw-${index}`} className="flex items-center space-x-2 mb-4">
+                  <div className="grid grid-cols-2 gap-2 flex-grow">
+                    <div>
+                      <Label htmlFor={`raw-material-${index}`} className="sr-only">
+                        Raw Material
+                      </Label>
+                      <Select
+                        value={item.raw_material_id}
+                        onValueChange={(value) =>
+                          updateRawMaterialItem(index, "raw_material_id", value)
+                        }
+                      >
+                        <SelectTrigger id={`raw-material-${index}`}>
+                          <SelectValue placeholder="Select raw material" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {rawMaterials.map((material) => (
+                            <SelectItem key={material.id} value={material.id}>
+                              {material.name} ({material.sku})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor={`raw-quantity-${index}`} className="sr-only">
+                        Quantity
+                      </Label>
+                      <Input
+                        id={`raw-quantity-${index}`}
+                        type="number"
+                        value={item.quantity_required}
+                        onChange={(e) =>
+                          updateRawMaterialItem(
+                            index,
+                            "quantity_required",
+                            parseFloat(e.target.value) || 1
+                          )
+                        }
+                        placeholder="Quantity"
+                        min="1"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                  
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeRawMaterialItem(index)}
+                    disabled={rawMaterialItems.length <= 1}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={addRawMaterialItem}
               >
-                <SelectTrigger id="finished_product_id">
-                  <SelectValue placeholder="Select a product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {finishedProducts.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.name} ({product.sku})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Plus className="h-4 w-4 mr-2" /> Add Raw Material
+              </Button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <Label>Raw Materials</Label>
+            <div className="space-y-4 pt-4 border-t">
+              <Label className="text-base font-medium">Packaging Items</Label>
+              
+              {packagingItemsList.map((item, index) => (
+                <div key={`pkg-${index}`} className="flex items-center space-x-2 mb-4">
+                  <div className="grid grid-cols-2 gap-2 flex-grow">
+                    <div>
+                      <Label htmlFor={`packaging-${index}`} className="sr-only">
+                        Packaging Item
+                      </Label>
+                      <Select
+                        value={item.packaging_item_id}
+                        onValueChange={(value) =>
+                          updatePackagingItem(index, "packaging_item_id", value)
+                        }
+                      >
+                        <SelectTrigger id={`packaging-${index}`}>
+                          <SelectValue placeholder="Select packaging item" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {packagingItems.map((pkg) => (
+                            <SelectItem key={pkg.id} value={pkg.id}>
+                              {pkg.name} ({pkg.type} - {pkg.size})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor={`pkg-quantity-${index}`} className="sr-only">
+                        Quantity
+                      </Label>
+                      <Input
+                        id={`pkg-quantity-${index}`}
+                        type="number"
+                        value={item.quantity_required}
+                        onChange={(e) =>
+                          updatePackagingItem(
+                            index,
+                            "quantity_required",
+                            parseFloat(e.target.value) || 1
+                          )
+                        }
+                        placeholder="Quantity"
+                        min="1"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                  
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addRawMaterialItem}
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removePackagingItem(index)}
+                    disabled={packagingItemsList.length <= 1}
                   >
-                    <Plus className="h-4 w-4 mr-1" /> Add
+                    <X className="h-4 w-4" />
                   </Button>
                 </div>
-                {rawMaterialItems.map((item, index) => (
-                  <div
-                    key={`raw-${index}`}
-                    className="flex items-center space-x-2 mb-2"
-                  >
-                    <Select
-                      value={item.raw_material_id}
-                      onValueChange={(value) =>
-                        updateRawMaterialItem(index, "raw_material_id", value)
-                      }
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Select raw material" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rawMaterials.map((material) => (
-                          <SelectItem key={material.id} value={material.id}>
-                            {material.name} ({material.sku})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="number"
-                      value={item.quantity_required}
-                      onChange={(e) =>
-                        updateRawMaterialItem(
-                          index,
-                          "quantity_required",
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
-                      placeholder="Quantity"
-                      className="w-24"
-                      min="0"
-                      step="0.01"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeRawMaterialItem(index)}
-                      disabled={rawMaterialItems.length <= 1}
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <Label>Packaging Items</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addPackagingItem}
-                  >
-                    <Plus className="h-4 w-4 mr-1" /> Add
-                  </Button>
-                </div>
-                {packagingItemsList.map((item, index) => (
-                  <div
-                    key={`pkg-${index}`}
-                    className="flex items-center space-x-2 mb-2"
-                  >
-                    <Select
-                      value={item.packaging_item_id}
-                      onValueChange={(value) =>
-                        updatePackagingItem(index, "packaging_item_id", value)
-                      }
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Select packaging item" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {packagingItems.map((pkg) => (
-                          <SelectItem key={pkg.id} value={pkg.id}>
-                            {pkg.name} ({pkg.type} - {pkg.size})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="number"
-                      value={item.quantity_required}
-                      onChange={(e) =>
-                        updatePackagingItem(
-                          index,
-                          "quantity_required",
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
-                      placeholder="Quantity"
-                      className="w-24"
-                      min="0"
-                      step="0.01"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removePackagingItem(index)}
-                      disabled={packagingItemsList.length <= 1}
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+              ))}
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={addPackagingItem}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Add Packaging Item
+              </Button>
             </div>
           </>
         )}
@@ -372,14 +400,14 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                   : packagingItemsList[0].quantity_required
               }
               onChange={(e) => {
-                const value = parseFloat(e.target.value) || 0;
+                const value = parseFloat(e.target.value) || 1;
                 if (selectedDependency.component_type === "raw_material") {
                   updateRawMaterialItem(0, "quantity_required", value);
                 } else {
                   updatePackagingItem(0, "quantity_required", value);
                 }
               }}
-              min="0"
+              min="1"
               step="0.01"
             />
           </div>
@@ -390,7 +418,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit">
+        <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
           {selectedDependency ? "Update" : "Create"}
         </Button>
       </DialogFooter>

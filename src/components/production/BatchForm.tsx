@@ -174,22 +174,12 @@ const BatchForm = ({
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="manualInput">Manual Product Input (SKU)</Label>
-          <div className="flex space-x-2">
-            <Input
-              id="manualInput"
-              value={manualInput}
-              onChange={handleManualInputChange}
-              placeholder="Enter product SKU"
-              className="flex-1"
-            />
-            <Button 
-              type="button" 
-              onClick={handleManualProductAdd}
-              variant="secondary"
-            >
-              Add
-            </Button>
-          </div>
+          <Input
+            id="manualInput"
+            value={manualInput}
+            onChange={handleManualInputChange}
+            placeholder="Enter product SKU"
+          />
         </div>
 
         <BatchItemsList
@@ -201,7 +191,7 @@ const BatchForm = ({
         />
 
         {!hasValidProducts && (
-          <Alert variant="destructive">
+          <Alert variant="warning">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Warning</AlertTitle>
             <AlertDescription>

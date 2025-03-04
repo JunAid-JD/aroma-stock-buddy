@@ -65,7 +65,7 @@ const RawMaterialForm = ({ formData, onChange }: RawMaterialFormProps) => {
         />
       </div>
       <div>
-        <Label htmlFor="unit_cost">Unit Cost (Rs.)</Label>
+        <Label htmlFor="unit_cost">Unit Cost (Rs)</Label>
         <Input
           id="unit_cost"
           type="number"
