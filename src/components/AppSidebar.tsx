@@ -1,5 +1,5 @@
 
-import { Package, Box, Archive, History, AlertTriangle, ShoppingCart, LayoutDashboard, LogOut } from "lucide-react";
+import { Package, Box, Archive, History, AlertTriangle, ShoppingCart, LayoutDashboard, LogOut, Link } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/providers/AuthProvider";
 import {
@@ -48,6 +48,11 @@ const menuItems = [
     title: "Purchase Records",
     icon: ShoppingCart,
     url: "/purchase-records",
+  },
+  {
+    title: "SKU Mapping",
+    icon: Link,
+    url: "/sku-mapping",
   },
 ];
 

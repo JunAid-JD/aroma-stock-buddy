@@ -1,243 +1,210 @@
-
+import React, { useState, useEffect } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import {
+  DialogClose,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DialogFooter } from "@/components/ui/dialog";
-import BatchItemsList from "./BatchItemsList";
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { AlertCircle } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { useToast } from "@/components/ui/use-toast";
 
-interface BatchItem {
-  product_id: string;
-  quantity: number;
-}
+const batchFormSchema = z.object({
+  finished_product_id: z.string().min(1, { message: "Please select a finished product." }),
+  batch_number: z.string().min(2, {
+    message: "Batch number must be at least 2 characters.",
+  }),
+  production_date: z.date(),
+  quantity_produced: z.number().min(1, {
+    message: "Quantity produced must be at least 1.",
+  }),
+});
 
 interface BatchFormProps {
-  selectedBatch: any;
-  batchItems: BatchItem[];
-  products: any[];
-  onSubmit: (e: React.FormEvent) => void;
+  onSubmit: (data: any) => Promise<void>;
   onClose: () => void;
-  onAddItem: () => void;
-  onRemoveItem: (index: number) => void;
-  onUpdateItem: (index: number, field: keyof BatchItem, value: any) => void;
 }
 
-const BatchForm = ({
-  selectedBatch,
-  batchItems,
-  products,
-  onSubmit,
-  onClose,
-  onAddItem,
-  onRemoveItem,
-  onUpdateItem,
-}: BatchFormProps) => {
-  const [productsWithDependencies, setProductsWithDependencies] = useState<any[]>([]);
-  const [hasValidProducts, setHasValidProducts] = useState(true);
-  const [manualInput, setManualInput] = useState<string>("");
+type BatchFormValues = z.infer<typeof batchFormSchema>;
 
-  // Fetch products that have dependencies
-  const { data: dependencies } = useQuery({
-    queryKey: ["dependencies"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sku_dependencies")
-        .select("finished_product_id")
-        .order("finished_product_id");
-      
-      if (error) throw error;
-      
-      // Get unique product IDs
-      const uniqueProductIds = [...new Set(data.map(d => d.finished_product_id))];
-      return uniqueProductIds;
+const BatchForm = ({ onSubmit, onClose }: BatchFormProps) => {
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const { toast } = useToast();
+
+  const form = useForm<BatchFormValues>({
+    resolver: zodResolver(batchFormSchema),
+    defaultValues: {
+      finished_product_id: "",
+      batch_number: "",
+      production_date: date || new Date(),
+      quantity_produced: 1,
     },
   });
 
-  useEffect(() => {
-    // Create a combined list of products that may include ones only from the dependency table
-    if (dependencies && products) {
-      // Get products from the finished_products table
-      const existingProducts = products.map(p => ({
-        ...p,
-        exists_in_finished_products: true
-      }));
-      
-      // Get products that only exist in the dependency table
-      const dependencyOnlyProductIds = dependencies.filter(
-        depId => !products.some(p => p.id === depId)
-      );
-      
-      // If there are products that only exist in dependencies, fetch their details
-      if (dependencyOnlyProductIds.length > 0) {
-        const fetchDependencyProducts = async () => {
-          try {
-            // Get finished products referenced in dependencies
-            const { data: dependencyProducts, error } = await supabase
-              .from("finished_products")
-              .select("id, name, sku")
-              .in("id", dependencyOnlyProductIds);
-            
-            if (error) throw error;
-            
-            // Combine with existing products
-            setProductsWithDependencies([
-              ...existingProducts,
-              ...(dependencyProducts || []).map(p => ({
-                ...p,
-                exists_in_finished_products: false
-              }))
-            ]);
-          } catch (error) {
-            console.error("Error fetching dependency products:", error);
-            setProductsWithDependencies(existingProducts);
-          }
-        };
-        
-        fetchDependencyProducts();
-      } else {
-        setProductsWithDependencies(existingProducts);
-      }
-    }
-  }, [dependencies, products]);
-
-  // Check if any selected products don't have dependencies
-  useEffect(() => {
-    if (dependencies && batchItems.length > 0) {
-      const allValid = batchItems.every(item => 
-        !item.product_id || dependencies.includes(item.product_id)
-      );
-      setHasValidProducts(allValid);
-    }
-  }, [batchItems, dependencies]);
-
-  // Handle manual product input
-  const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setManualInput(e.target.value);
-  };
-
-  // Function to handle manual input submission
-  const handleManualProductAdd = async () => {
-    if (!manualInput.trim()) return;
-    
-    try {
-      // First check if product exists in finished_products
-      const { data: existingProduct, error: existingError } = await supabase
+  const { data: finishedProducts, isLoading } = useQuery({
+    queryKey: ["finishedProducts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("finished_products")
         .select("id, name, sku")
-        .eq("sku", manualInput)
-        .maybeSingle();
-      
-      if (existingError) throw existingError;
-      
-      // If product exists, add it to batch items
-      if (existingProduct) {
-        const newItem = { product_id: existingProduct.id, quantity: 1 };
-        batchItems.length === 1 && batchItems[0].product_id === "" 
-          ? onUpdateItem(0, "product_id", existingProduct.id)
-          : onAddItem();
-        setManualInput("");
-        return;
-      }
-      
-      // Check if product exists in SKU dependencies
-      const { data: depProducts, error: depError } = await supabase
+        .order("name");
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Function to check if a finished product has dependencies
+  const checkDependencies = async (productId: string) => {
+    try {
+      const { data, error } = await supabase
         .from("sku_dependencies")
-        .select("finished_product_id, finished_products:finished_product_id(id, name, sku)")
-        .eq("finished_products.sku", manualInput)
-        .limit(1);
-        
-      if (depError) throw depError;
-      
-      if (depProducts && depProducts.length > 0 && depProducts[0].finished_products) {
-        const productId = depProducts[0].finished_product_id;
-        // Add to batch items
-        batchItems.length === 1 && batchItems[0].product_id === "" 
-          ? onUpdateItem(0, "product_id", productId)
-          : onAddItem();
-        setManualInput("");
-      } else {
-        // Product not found
-        alert(`Product with SKU ${manualInput} not found in the system`);
+        .select("*")
+        .eq("finished_product_id", productId);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        toast({
+          title: "Warning: No dependencies defined",
+          description: `This product has no raw materials or packaging defined. Production may be inaccurate.`,
+          variant: "destructive",
+        });
+        return false;
       }
-    } catch (error) {
-      console.error("Error adding manual product:", error);
+      return true;
+    } catch (error: any) {
+      console.error("Error checking dependencies:", error);
+      return false;
     }
   };
 
+  async function onSubmitHandler(values: BatchFormValues) {
+    const hasDependencies = await checkDependencies(values.finished_product_id);
+    if (!hasDependencies) {
+      return;
+    }
+
+    await onSubmit({
+      ...values,
+      production_date: date,
+    });
+    onClose();
+  }
+
+  useEffect(() => {
+    form.setValue("production_date", date || new Date());
+  }, [date, form]);
+
   return (
-    <form onSubmit={onSubmit}>
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="manualInput">Manual Product Input (SKU)</Label>
-          <Input
-            id="manualInput"
-            value={manualInput}
-            onChange={handleManualInputChange}
-            placeholder="Enter product SKU"
-          />
-        </div>
-
-        <BatchItemsList
-          items={batchItems}
-          products={productsWithDependencies || products || []}
-          onAddItem={onAddItem}
-          onRemoveItem={onRemoveItem}
-          onUpdateItem={onUpdateItem}
-        />
-
-        {!hasValidProducts && (
-          <Alert variant="warning">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Warning</AlertTitle>
-            <AlertDescription>
-              Some selected products don't have dependency mappings. Production may not correctly update inventory.
-            </AlertDescription>
-          </Alert>
-        )}
-
+    <form onSubmit={form.handleSubmit(onSubmitHandler)} className="space-y-8">
+      <div className="grid grid-cols-1 gap-4">
         <div>
-          <Label htmlFor="status">Status</Label>
-          <Select 
-            name="status" 
-            defaultValue={selectedBatch?.status || "in_progress"}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label htmlFor="finished_product_id">Finished Product</Label>
+          <Controller
+            name="finished_product_id"
+            control={form.control}
+            render={({ field }) => (
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a finished product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {finishedProducts?.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.name} ({product.sku})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {form.formState.errors.finished_product_id && (
+            <p className="text-sm text-red-500">
+              {form.formState.errors.finished_product_id.message}
+            </p>
+          )}
         </div>
 
         <div>
-          <Label htmlFor="notes">Notes</Label>
+          <Label htmlFor="batch_number">Batch Number</Label>
           <Input
-            id="notes"
-            name="notes"
-            defaultValue={selectedBatch?.notes}
+            id="batch_number"
+            type="text"
+            {...form.register("batch_number")}
           />
+          {form.formState.errors.batch_number && (
+            <p className="text-sm text-red-500">
+              {form.formState.errors.batch_number.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <Label>Production Date</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !date && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date ? format(date, "PPP") : <span>Pick a date</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center" side="bottom">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                disabled={(date) =>
+                  date > new Date()
+                }
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div>
+          <Label htmlFor="quantity_produced">Quantity Produced</Label>
+          <Input
+            id="quantity_produced"
+            type="number"
+            {...form.register("quantity_produced", { valueAsNumber: true })}
+          />
+          {form.formState.errors.quantity_produced && (
+            <p className="text-sm text-red-500">
+              {form.formState.errors.quantity_produced.message}
+            </p>
+          )}
         </div>
       </div>
 
-      <DialogFooter className="mt-6">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-        >
-          Cancel
-        </Button>
-        <Button type="submit">
-          {selectedBatch ? "Update" : "Create"}
-        </Button>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="secondary">
+            Cancel
+          </Button>
+        </DialogClose>
+        <Button type="submit">Submit</Button>
       </DialogFooter>
     </form>
   );
