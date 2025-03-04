@@ -15,11 +15,9 @@ export type Database = {
           id: string
           name: string
           quantity_in_stock: number
-          reorder_point: number
           required_packaging: Json | null
           sku: string
           total_value: number | null
-          type: Database["public"]["Enums"]["material_type"]
           unit_price: number
           updated_at: string | null
           volume_config: Database["public"]["Enums"]["product_volume_config"]
@@ -29,11 +27,9 @@ export type Database = {
           id?: string
           name: string
           quantity_in_stock?: number
-          reorder_point?: number
           required_packaging?: Json | null
           sku: string
           total_value?: number | null
-          type: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
           volume_config?: Database["public"]["Enums"]["product_volume_config"]
@@ -43,11 +39,9 @@ export type Database = {
           id?: string
           name?: string
           quantity_in_stock?: number
-          reorder_point?: number
           required_packaging?: Json | null
           sku?: string
           total_value?: number | null
-          type?: Database["public"]["Enums"]["material_type"]
           unit_price?: number
           updated_at?: string | null
           volume_config?: Database["public"]["Enums"]["product_volume_config"]
@@ -139,6 +133,7 @@ export type Database = {
           finished_product_id: string | null
           id: string
           packaging_item_id: string | null
+          quantity_per_unit: number
           quantity_required: number
           raw_material_id: string | null
         }
@@ -148,6 +143,7 @@ export type Database = {
           finished_product_id?: string | null
           id?: string
           packaging_item_id?: string | null
+          quantity_per_unit?: number
           quantity_required: number
           raw_material_id?: string | null
         }
@@ -157,6 +153,7 @@ export type Database = {
           finished_product_id?: string | null
           id?: string
           packaging_item_id?: string | null
+          quantity_per_unit?: number
           quantity_required?: number
           raw_material_id?: string | null
         }
@@ -241,6 +238,7 @@ export type Database = {
           created_at: string | null
           id: string
           item_id: string
+          item_type: Database["public"]["Enums"]["product_category"]
           quantity: number
         }
         Insert: {
@@ -248,6 +246,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           item_id: string
+          item_type?: Database["public"]["Enums"]["product_category"]
           quantity?: number
         }
         Update: {
@@ -255,21 +254,15 @@ export type Database = {
           created_at?: string | null
           id?: string
           item_id?: string
+          item_type?: Database["public"]["Enums"]["product_category"]
           quantity?: number
         }
         Relationships: [
           {
-            foreignKeyName: "production_batch_items_batch_id_fkey"
+            foreignKeyName: "fk_production_batch"
             columns: ["batch_id"]
             isOneToOne: false
             referencedRelation: "production_batches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_batch_items_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "finished_products"
             referencedColumns: ["id"]
           },
         ]
@@ -402,6 +395,61 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      sku_dependencies: {
+        Row: {
+          created_at: string | null
+          finished_product_id: string | null
+          id: string
+          item_type: Database["public"]["Enums"]["product_category"]
+          packaging_item_id: string | null
+          quantity_required: number
+          raw_material_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          finished_product_id?: string | null
+          id?: string
+          item_type: Database["public"]["Enums"]["product_category"]
+          packaging_item_id?: string | null
+          quantity_required?: number
+          raw_material_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          finished_product_id?: string | null
+          id?: string
+          item_type?: Database["public"]["Enums"]["product_category"]
+          packaging_item_id?: string | null
+          quantity_required?: number
+          raw_material_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sku_dependencies_finished_product_id_fkey"
+            columns: ["finished_product_id"]
+            isOneToOne: false
+            referencedRelation: "finished_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sku_dependencies_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sku_dependencies_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

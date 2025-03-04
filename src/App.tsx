@@ -13,6 +13,7 @@ import FinishedGoods from "@/pages/FinishedGoods";
 import LossRecords from "@/pages/LossRecords";
 import PurchaseRecords from "@/pages/PurchaseRecords";
 import ProductionHistory from "@/pages/ProductionHistory";
+import SKUDependencyMapping from "@/pages/SKUDependencyMapping";
 import NotFound from "@/pages/NotFound";
 import Layout from "@/components/Layout";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
@@ -55,6 +56,7 @@ const App = () => {
                 <Route path="loss-records" element={<LossRecords />} />
                 <Route path="purchase-records" element={<PurchaseRecords />} />
                 <Route path="production-history" element={<ProductionHistory />} />
+                <Route path="sku-mapping" element={<SKUDependencyMapping />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
@@ -66,4 +68,3 @@ const App = () => {
 };
 
 export default App;
-

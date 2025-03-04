@@ -40,32 +40,101 @@ const ProductionHistory = () => {
           *,
           production_batch_items (
             quantity,
-            finished_products (
-              name
-            )
+            item_id
           )
         `)
         .order("production_date", { ascending: false });
 
       if (error) throw error;
 
-      return (batches || []).map(batch => ({
-        ...batch,
-        items_summary: batch.production_batch_items
-          ?.map(item => `${item.finished_products.name} (${item.quantity})`)
-          .join(", ") || "No items"
+      // Fetch product details for each batch item
+      const batchesWithItems = await Promise.all((batches || []).map(async batch => {
+        // Extract product IDs
+        const productIds = batch.production_batch_items.map((item: any) => item.item_id);
+        
+        // Fetch product details
+        const { data: products, error: productsError } = await supabase
+          .from("finished_products")
+          .select("id, name, sku")
+          .in("id", productIds);
+        
+        if (productsError) {
+          console.error("Error fetching products:", productsError);
+          return {
+            ...batch,
+            items_summary: "Error loading items"
+          };
+        }
+        
+        // Create a lookup map for products
+        const productMap = new Map();
+        (products || []).forEach(product => {
+          productMap.set(product.id, product);
+        });
+        
+        // Create items summary
+        const items_summary = batch.production_batch_items
+          .map((item: any) => {
+            const product = productMap.get(item.item_id);
+            return product ? `${product.name || product.sku} (${item.quantity})` : `Unknown product (${item.quantity})`;
+          })
+          .join(", ") || "No items";
+        
+        return {
+          ...batch,
+          items_summary
+        };
       }));
+
+      return batchesWithItems;
     },
   });
 
-  const { data: products } = useQuery({
-    queryKey: ["finishedProducts"],
+  const { data: availableProducts } = useQuery({
+    queryKey: ["availableProducts"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get regular finished products
+      const { data: finishedProducts, error: fpError } = await supabase
         .from("finished_products")
-        .select("id, name");
-      if (error) throw error;
-      return data || [];
+        .select("id, name, sku");
+      
+      if (fpError) throw fpError;
+      
+      // Get products that have dependencies but might not be in the finished_products table
+      const { data: dependencies, error: depError } = await supabase
+        .from("sku_dependencies")
+        .select(`
+          finished_product_id,
+          finished_products!finished_product_id(id, name, sku)
+        `)
+        .order("finished_product_id");
+      
+      if (depError) throw depError;
+      
+      // Create a set of all product IDs from the finished_products table
+      const existingProductIds = new Set(finishedProducts.map(p => p.id));
+      
+      // Filter and map products from dependencies that don't exist in finished_products
+      const dependencyOnlyProducts = dependencies
+        .filter(d => d.finished_products && !existingProductIds.has(d.finished_product_id))
+        .map(d => ({
+          id: d.finished_product_id,
+          name: d.finished_products.name || d.finished_products.sku,
+          sku: d.finished_products.sku
+        }));
+      
+      // Combine both lists and remove duplicates
+      const allProducts = [
+        ...finishedProducts,
+        ...dependencyOnlyProducts
+      ];
+      
+      // Remove duplicates based on ID
+      const uniqueProducts = Array.from(
+        new Map(allProducts.map(item => [item.id, item])).values()
+      );
+      
+      return uniqueProducts;
     },
   });
 
@@ -75,7 +144,7 @@ const ProductionHistory = () => {
     const data = {
       status: formData.get("status") as string,
       notes: formData.get("notes") as string,
-      product_id: batchItems[0].product_id,
+      product_id: batchItems[0].product_id, // First product for compatibility
       production_date: new Date().toISOString()
     };
 
@@ -104,11 +173,14 @@ const ProductionHistory = () => {
         const { error: itemsError } = await supabase
           .from("production_batch_items")
           .insert(
-            batchItems.map(item => ({
-              batch_id: selectedBatch.id,
-              item_id: item.product_id,
-              quantity: item.quantity,
-            }))
+            batchItems
+              .filter(item => item.product_id && item.quantity > 0)
+              .map(item => ({
+                batch_id: selectedBatch.id,
+                item_id: item.product_id,
+                quantity: item.quantity,
+                item_type: 'finished_product'
+              }))
           );
 
         if (itemsError) throw itemsError;
@@ -127,17 +199,24 @@ const ProductionHistory = () => {
         const { error: itemsError } = await supabase
           .from("production_batch_items")
           .insert(
-            batchItems.map(item => ({
-              batch_id: newBatch.id,
-              item_id: item.product_id,
-              quantity: item.quantity,
-            }))
+            batchItems
+              .filter(item => item.product_id && item.quantity > 0)
+              .map(item => ({
+                batch_id: newBatch.id,
+                item_id: item.product_id,
+                quantity: item.quantity,
+                item_type: 'finished_product'
+              }))
           );
 
         if (itemsError) throw itemsError;
       }
 
       await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
+      await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
+      await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+      await queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
+      
       toast({
         title: "Success",
         description: `Batch ${selectedBatch ? "updated" : "added"} successfully.`,
@@ -167,10 +246,13 @@ const ProductionHistory = () => {
 
   const handleEdit = (batch: any) => {
     setSelectedBatch(batch);
+    
+    // Map batch items
     const items = batch.production_batch_items?.map((item: any) => ({
-      product_id: item.finished_products.id,
+      product_id: item.item_id,
       quantity: item.quantity,
     })) || [{ product_id: "", quantity: 0 }];
+    
     setBatchItems(items);
     setIsDialogOpen(true);
   };
@@ -264,7 +346,7 @@ const ProductionHistory = () => {
           <BatchForm
             selectedBatch={selectedBatch}
             batchItems={batchItems}
-            products={products || []}
+            products={availableProducts || []}
             onSubmit={handleSubmit}
             onClose={handleClose}
             onAddItem={addBatchItem}
