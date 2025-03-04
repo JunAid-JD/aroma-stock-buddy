@@ -39,6 +39,7 @@ const BatchForm = ({
 }: BatchFormProps) => {
   const [productsWithDependencies, setProductsWithDependencies] = useState<any[]>([]);
   const [hasValidProducts, setHasValidProducts] = useState(true);
+  const [manualInput, setManualInput] = useState<string>("");
 
   // Fetch products that have dependencies
   const { data: dependencies } = useQuery({
@@ -114,9 +115,83 @@ const BatchForm = ({
     }
   }, [batchItems, dependencies]);
 
+  // Handle manual product input
+  const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setManualInput(e.target.value);
+  };
+
+  // Function to handle manual input submission
+  const handleManualProductAdd = async () => {
+    if (!manualInput.trim()) return;
+    
+    try {
+      // First check if product exists in finished_products
+      const { data: existingProduct, error: existingError } = await supabase
+        .from("finished_products")
+        .select("id, name, sku")
+        .eq("sku", manualInput)
+        .maybeSingle();
+      
+      if (existingError) throw existingError;
+      
+      // If product exists, add it to batch items
+      if (existingProduct) {
+        const newItem = { product_id: existingProduct.id, quantity: 1 };
+        batchItems.length === 1 && batchItems[0].product_id === "" 
+          ? onUpdateItem(0, "product_id", existingProduct.id)
+          : onAddItem();
+        setManualInput("");
+        return;
+      }
+      
+      // Check if product exists in SKU dependencies
+      const { data: depProducts, error: depError } = await supabase
+        .from("sku_dependencies")
+        .select("finished_product_id, finished_products:finished_product_id(id, name, sku)")
+        .eq("finished_products.sku", manualInput)
+        .limit(1);
+        
+      if (depError) throw depError;
+      
+      if (depProducts && depProducts.length > 0 && depProducts[0].finished_products) {
+        const productId = depProducts[0].finished_product_id;
+        // Add to batch items
+        batchItems.length === 1 && batchItems[0].product_id === "" 
+          ? onUpdateItem(0, "product_id", productId)
+          : onAddItem();
+        setManualInput("");
+      } else {
+        // Product not found
+        alert(`Product with SKU ${manualInput} not found in the system`);
+      }
+    } catch (error) {
+      console.error("Error adding manual product:", error);
+    }
+  };
+
   return (
     <form onSubmit={onSubmit}>
       <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="manualInput">Manual Product Input (SKU)</Label>
+          <div className="flex space-x-2">
+            <Input
+              id="manualInput"
+              value={manualInput}
+              onChange={handleManualInputChange}
+              placeholder="Enter product SKU"
+              className="flex-1"
+            />
+            <Button 
+              type="button" 
+              onClick={handleManualProductAdd}
+              variant="secondary"
+            >
+              Add
+            </Button>
+          </div>
+        </div>
+
         <BatchItemsList
           items={batchItems}
           products={productsWithDependencies || products || []}

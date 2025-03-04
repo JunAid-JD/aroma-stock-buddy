@@ -44,7 +44,7 @@ const SKUDependencyMapping = () => {
         .select(`
           id,
           finished_product_id,
-          item_type,
+          component_type,
           quantity_required,
           updated_at,
           raw_material_id,
@@ -60,11 +60,11 @@ const SKUDependencyMapping = () => {
       // Transform the data for the table view
       const transformedData = rawDependencies.map(dep => {
         let componentName = "";
-        let componentType = dep.item_type;
+        let componentType = dep.component_type;
 
-        if (dep.item_type === "raw_material" && dep.raw_materials) {
+        if (dep.component_type === "raw_material" && dep.raw_materials) {
           componentName = dep.raw_materials.name || dep.raw_materials.sku;
-        } else if (dep.item_type === "packaging" && dep.packaging_items) {
+        } else if (dep.component_type === "packaging" && dep.packaging_items) {
           componentName = dep.packaging_items.name || dep.packaging_items.sku;
         }
 
@@ -143,7 +143,7 @@ const SKUDependencyMapping = () => {
               finished_product_id: formData.finished_product_id,
               raw_material_id: item.raw_material_id,
               quantity_required: item.quantity_required,
-              item_type: 'raw_material' as const
+              component_type: 'raw_material' as const
             }));
 
           if (rawMaterialsData.length > 0) {
@@ -163,7 +163,7 @@ const SKUDependencyMapping = () => {
               finished_product_id: formData.finished_product_id,
               packaging_item_id: item.packaging_item_id,
               quantity_required: item.quantity_required,
-              item_type: 'packaging' as const
+              component_type: 'packaging' as const
             }));
 
           if (packagingItemsData.length > 0) {
