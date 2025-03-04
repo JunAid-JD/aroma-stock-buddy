@@ -1,93 +1,97 @@
 
+import { Package, Box, Archive, History, AlertTriangle, ShoppingCart, LayoutDashboard, LogOut } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/providers/AuthProvider";
 import {
-  PackageOpen,
-  Package,
-  ShoppingCart,
-  History,
-  Home,
-  FileBarChart,
-  AlertTriangle,
-  Link,
-  LogOut,
-} from "lucide-react";
-import { Link as RouterLink } from "react-router-dom";
-import { useIsMobile } from "@/hooks/use-mobile";
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 
-export const menuItems = [
+const menuItems = [
   {
     title: "Dashboard",
-    icon: Home,
-    link: "/",
+    icon: LayoutDashboard,
+    url: "/",
   },
   {
-    title: "Finished Goods",
-    icon: PackageOpen,
-    link: "/finished-goods",
-  },
-  {
-    title: "Raw Materials",
-    icon: Package,
-    link: "/raw-materials",
+    title: "Raw Goods",
+    icon: Box,
+    url: "/raw-goods",
   },
   {
     title: "Packaging Goods",
     icon: Package,
-    link: "/packaging-goods",
+    url: "/packaging-goods",
+  },
+  {
+    title: "Finished Goods",
+    icon: Archive,
+    url: "/finished-goods",
   },
   {
     title: "Production History",
     icon: History,
-    link: "/production-history",
-  },
-  {
-    title: "Purchase Records",
-    icon: ShoppingCart,
-    link: "/purchase-records",
+    url: "/production-history",
   },
   {
     title: "Loss Records",
     icon: AlertTriangle,
-    link: "/loss-records",
+    url: "/loss-records",
   },
   {
-    title: "SKU Dependency Mapping",
-    icon: Link,
-    link: "/sku-dependency-mapping",
+    title: "Purchase Records",
+    icon: ShoppingCart,
+    url: "/purchase-records",
   },
 ];
 
-export const AppSidebar = () => {
-  const isMobile = useIsMobile();
+const AppSidebar = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   return (
-    <aside className="min-w-[240px] md:min-w-[280px] border-r h-screen overflow-y-auto">
-      <div className="p-6 space-y-6">
-        <div className="flex items-center space-x-3">
-          <FileBarChart className="h-8 w-8" />
-          <h1 className="text-xl font-bold">Inventory System</h1>
-        </div>
-        <nav className="space-y-1">
-          {menuItems.map((item) => (
-            <RouterLink
-              key={item.title}
-              to={item.link}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 hover:bg-gray-100"
-            >
-              <item.icon className="h-5 w-5" />
-              <span>{item.title}</span>
-            </RouterLink>
-          ))}
-        </nav>
-        
-        <RouterLink
-          to="/logout"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 hover:bg-gray-100 mt-auto border-t pt-4"
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Logout</span>
-        </RouterLink>
-      </div>
-    </aside>
+    <Sidebar>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Inventory Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    isActive={location.pathname === item.url}
+                    onClick={() => navigate(item.url)}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={logout}>
+                  <LogOut className="w-5 h-5" />
+                  <span>Logout</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
   );
 };
 

@@ -22,6 +22,19 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
   const [formData, setFormData] = useState(item || {});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { data: configurations } = useQuery({
+    queryKey: ["productConfigurations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_configurations")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: type === 'finished'
+  });
+
   useEffect(() => {
     setFormData(item || {});
   }, [item]);
@@ -62,6 +75,7 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
           <FinishedProductForm 
             formData={formData} 
             onChange={handleChange}
+            configurations={configurations || []}
           />
         );
       default:

@@ -1,49 +1,69 @@
 
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
-import Dashboard from "./pages/Dashboard";
-import Layout from "./components/Layout";
-import { Toaster } from "./components/ui/toaster";
-import FinishedGoods from "./pages/FinishedGoods";
-import RawMaterials from "./pages/RawMaterials";
-import PackagingGoods from "./pages/PackagingGoods";
-import ProductionHistory from "./pages/ProductionHistory";
-import PurchaseRecords from "./pages/PurchaseRecords";
-import LossRecords from "./pages/LossRecords";
-import SKUDependencyMapping from "./pages/SKUDependencyMapping";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
-import "./App.css";
+import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
+import RawMaterials from "@/pages/RawMaterials";
+import PackagingGoods from "@/pages/PackagingGoods";
+import FinishedGoods from "@/pages/FinishedGoods";
+import LossRecords from "@/pages/LossRecords";
+import PurchaseRecords from "@/pages/PurchaseRecords";
+import ProductionHistory from "@/pages/ProductionHistory";
+import NotFound from "@/pages/NotFound";
+import Layout from "@/components/Layout";
+import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 
-// Create a query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false
-    }
+const queryClient = new QueryClient();
+
+// Protected Route component to handle authentication
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
   }
-});
 
-function App() {
+  return <>{children}</>;
+};
+
+const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="finished-goods" element={<FinishedGoods />} />
-            <Route path="raw-materials" element={<RawMaterials />} />
-            <Route path="packaging-goods" element={<PackagingGoods />} />
-            <Route path="production-history" element={<ProductionHistory />} />
-            <Route path="purchase-records" element={<PurchaseRecords />} />
-            <Route path="loss-records" element={<LossRecords />} />
-            <Route path="sku-dependency-mapping" element={<SKUDependencyMapping />} />
-          </Route>
-        </Routes>
-      </Router>
-      <Toaster />
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Layout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Dashboard />} />
+                <Route path="raw-goods" element={<RawMaterials />} />
+                <Route path="packaging-goods" element={<PackagingGoods />} />
+                <Route path="finished-goods" element={<FinishedGoods />} />
+                <Route path="loss-records" element={<LossRecords />} />
+                <Route path="purchase-records" element={<PurchaseRecords />} />
+                <Route path="production-history" element={<ProductionHistory />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
-}
+};
 
 export default App;
+
