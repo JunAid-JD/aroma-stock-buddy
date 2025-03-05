@@ -115,18 +115,19 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
       return;
     }
 
-    // First check if the product exists or create it
-    let productId = existingProduct?.id;
-    
-    if (!productId) {
-      // Extract name from SKU for better display (simple approach)
-      const nameFromSku = skuInput.split('-')[0] || skuInput;
+    setIsLoading(true);
+
+    try {
+      // First, check if the product exists
+      let productId = existingProduct?.id;
       
-      try {
-        setIsLoading(true);
+      // If product doesn't exist, create it
+      if (!productId) {
+        // Extract name from SKU for better display
+        const nameFromSku = skuInput.split('-')[0] || skuInput;
         
-        // Create new product in finished_products table
-        const { data: newProduct, error } = await supabase
+        // Create new product
+        const { data: newProduct, error: createError } = await supabase
           .from("finished_products")
           .insert({
             sku: skuInput,
@@ -137,32 +138,30 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
           .select("id")
           .single();
         
-        if (error) {
-          throw error;
+        if (createError) {
+          console.error("Error creating product:", createError);
+          throw createError;
         }
         
         productId = newProduct.id;
-      } catch (error: any) {
-        console.error("Error creating product:", error);
-        toast({
-          title: "Error",
-          description: error.message || "Failed to create product",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
       }
-    }
 
-    // Now submit with the productId
-    onSubmit({
-      finished_product_id: productId,
-      sku: skuInput,
-      raw_materials: rawMaterialItems.filter(item => item.raw_material_id),
-      packaging_items: packagingItemsList.filter(item => item.packaging_item_id),
-    });
-    
-    setIsLoading(false);
+      // Now let the parent component handle the dependencies with the valid product ID
+      onSubmit({
+        finished_product_id: productId, // Pass the UUID of the product
+        raw_materials: rawMaterialItems.filter(item => item.raw_material_id),
+        packaging_items: packagingItemsList.filter(item => item.packaging_item_id),
+      });
+    } catch (error: any) {
+      console.error("Form submission error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create dependency",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const checkSku = async () => {
@@ -184,6 +183,11 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         toast({
           title: "Product found",
           description: `Found existing product: ${data.name}`,
+        });
+      } else {
+        toast({
+          title: "Product not found",
+          description: "New product will be created",
         });
       }
     } catch (error: any) {
@@ -281,7 +285,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                 <Input
                   id="skuInput"
                   value={skuInput}
-                  onChange={(e) => handleSkuChange(e.target.value)}
+                  onChange={(e) => setSkuInput(e.target.value)}
                   placeholder="e.g. FG-abc123"
                   className="flex-grow"
                 />
@@ -291,7 +295,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                   onClick={checkSku}
                   disabled={isLoading || !skuInput}
                 >
-                  {isLoading ? "Loading..." : "Check"}
+                  Check
                 </Button>
               </div>
               {existingProduct && (

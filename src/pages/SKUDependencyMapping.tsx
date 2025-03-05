@@ -189,12 +189,19 @@ const SKUDependencyMapping = () => {
           description: "SKU dependency has been updated successfully",
         });
       } else {
+        // We now have a valid UUID for the finished product
+        const productId = formData.finished_product_id;
+        
+        if (!productId) {
+          throw new Error("No finished product ID provided");
+        }
+
         // Insert raw material dependencies if any
         if (formData.raw_materials && formData.raw_materials.length > 0) {
           const rawMaterialInserts = formData.raw_materials
             .filter((item: any) => item.raw_material_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id: formData.finished_product_id,
+              finished_product_id: productId, // Use UUID here
               raw_material_id: item.raw_material_id,
               component_type: "raw_material",
               item_type: "raw_material",
@@ -220,7 +227,7 @@ const SKUDependencyMapping = () => {
           const packagingInserts = formData.packaging_items
             .filter((item: any) => item.packaging_item_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id: formData.finished_product_id,
+              finished_product_id: productId, // Use UUID here
               packaging_item_id: item.packaging_item_id,
               component_type: "packaging",
               item_type: "packaging",
