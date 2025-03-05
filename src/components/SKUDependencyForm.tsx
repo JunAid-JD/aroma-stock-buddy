@@ -118,7 +118,6 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     setIsLoading(true);
 
     try {
-      // First, check if the product exists
       let productId = existingProduct?.id;
       
       // If product doesn't exist, create it
@@ -145,10 +144,12 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         
         productId = newProduct.id;
       }
+      
+      console.log("Submitting with product ID:", productId);
 
-      // Now let the parent component handle the dependencies with the valid product ID
+      // Now handle dependencies with the valid product ID
       onSubmit({
-        finished_product_id: productId, // Pass the UUID of the product
+        finished_product_id: productId,
         raw_materials: rawMaterialItems.filter(item => item.raw_material_id),
         packaging_items: packagingItemsList.filter(item => item.packaging_item_id),
       });
@@ -180,14 +181,16 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
       setExistingProduct(data);
       
       if (data) {
+        setFinishedProductId(data.id);
         toast({
           title: "Product found",
-          description: `Found existing product: ${data.name}`,
+          description: `Found existing product: ${data.name} (ID: ${data.id})`,
         });
       } else {
+        setFinishedProductId("");
         toast({
           title: "Product not found",
-          description: "New product will be created",
+          description: "New product will be created with this SKU",
         });
       }
     } catch (error: any) {
@@ -252,6 +255,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
   const handleSkuChange = (value: string) => {
     setSkuInput(value);
     setExistingProduct(null); // Reset existing product when SKU changes
+    setFinishedProductId(""); // Reset finished product ID
   };
 
   return (
@@ -280,12 +284,12 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         ) : (
           <>
             <div className="space-y-2">
-              <Label htmlFor="finished_product_sku">Finished Product SKU</Label>
+              <Label htmlFor="finished_product_sku">Finished Product SKU (e.g. FG-abc123)</Label>
               <div className="flex items-center space-x-2">
                 <Input
                   id="skuInput"
                   value={skuInput}
-                  onChange={(e) => setSkuInput(e.target.value)}
+                  onChange={(e) => handleSkuChange(e.target.value)}
                   placeholder="e.g. FG-abc123"
                   className="flex-grow"
                 />
@@ -300,7 +304,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
               </div>
               {existingProduct && (
                 <p className="text-sm text-green-600">
-                  Found: {existingProduct.name} (Stock: {existingProduct.quantity_in_stock})
+                  Found: {existingProduct.name} (Stock: {existingProduct.quantity_in_stock}, ID: {existingProduct.id})
                 </p>
               )}
             </div>

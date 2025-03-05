@@ -201,7 +201,7 @@ const SKUDependencyMapping = () => {
           const rawMaterialInserts = formData.raw_materials
             .filter((item: any) => item.raw_material_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id: productId, // Use UUID here
+              finished_product_id: productId,
               raw_material_id: item.raw_material_id,
               component_type: "raw_material",
               item_type: "raw_material",
@@ -227,7 +227,7 @@ const SKUDependencyMapping = () => {
           const packagingInserts = formData.packaging_items
             .filter((item: any) => item.packaging_item_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id: productId, // Use UUID here
+              finished_product_id: productId,
               packaging_item_id: item.packaging_item_id,
               component_type: "packaging",
               item_type: "packaging",
@@ -347,7 +347,7 @@ const SKUDependencyMapping = () => {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </Dialog>
     </div>
   );
 };
