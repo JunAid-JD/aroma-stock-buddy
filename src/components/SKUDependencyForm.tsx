@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface RawMaterialItem {
   raw_material_id: string;
@@ -43,6 +44,8 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     { packaging_item_id: "", quantity_required: 1 }
   ]);
   const [skuInput, setSkuInput] = useState<string>("");
+  const [existingProduct, setExistingProduct] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -71,7 +74,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     }
   }, [selectedDependency]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // If editing an existing dependency, just update that specific one
@@ -112,12 +115,87 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
       return;
     }
 
-    // Submit the form with all components
+    // First check if the product exists or create it
+    let productId = existingProduct?.id;
+    
+    if (!productId) {
+      // Extract name from SKU for better display (simple approach)
+      const nameFromSku = skuInput.split('-')[0] || skuInput;
+      
+      try {
+        setIsLoading(true);
+        
+        // Create new product in finished_products table
+        const { data: newProduct, error } = await supabase
+          .from("finished_products")
+          .insert({
+            sku: skuInput,
+            name: nameFromSku,
+            quantity_in_stock: 0,
+            unit_price: 0
+          })
+          .select("id")
+          .single();
+        
+        if (error) {
+          throw error;
+        }
+        
+        productId = newProduct.id;
+      } catch (error: any) {
+        console.error("Error creating product:", error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to create product",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Now submit with the productId
     onSubmit({
+      finished_product_id: productId,
       sku: skuInput,
       raw_materials: rawMaterialItems.filter(item => item.raw_material_id),
       packaging_items: packagingItemsList.filter(item => item.packaging_item_id),
     });
+    
+    setIsLoading(false);
+  };
+
+  const checkSku = async () => {
+    if (!skuInput) return;
+    
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("finished_products")
+        .select("*")
+        .eq("sku", skuInput)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      setExistingProduct(data);
+      
+      if (data) {
+        toast({
+          title: "Product found",
+          description: `Found existing product: ${data.name}`,
+        });
+      }
+    } catch (error: any) {
+      console.error("Error checking SKU:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to check SKU",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const addRawMaterialItem = () => {
@@ -166,6 +244,12 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     setPackagingItemsList(newItems);
   };
 
+  // Handle SKU input change
+  const handleSkuChange = (value: string) => {
+    setSkuInput(value);
+    setExistingProduct(null); // Reset existing product when SKU changes
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
       {!selectedDependency && (
@@ -193,13 +277,28 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
           <>
             <div className="space-y-2">
               <Label htmlFor="finished_product_sku">Finished Product SKU</Label>
-              <Input
-                id="skuInput"
-                value={skuInput}
-                onChange={(e) => setSkuInput(e.target.value)}
-                placeholder="Enter finished product SKU"
-                className="mb-2"
-              />
+              <div className="flex items-center space-x-2">
+                <Input
+                  id="skuInput"
+                  value={skuInput}
+                  onChange={(e) => handleSkuChange(e.target.value)}
+                  placeholder="e.g. FG-abc123"
+                  className="flex-grow"
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={checkSku}
+                  disabled={isLoading || !skuInput}
+                >
+                  {isLoading ? "Loading..." : "Check"}
+                </Button>
+              </div>
+              {existingProduct && (
+                <p className="text-sm text-green-600">
+                  Found: {existingProduct.name} (Stock: {existingProduct.quantity_in_stock})
+                </p>
+              )}
             </div>
 
             <div className="space-y-4 pt-4 border-t">
@@ -380,8 +479,12 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-          {selectedDependency ? "Update" : "Create"}
+        <Button 
+          type="submit" 
+          className="bg-blue-600 hover:bg-blue-700"
+          disabled={isLoading}
+        >
+          {isLoading ? "Processing..." : (selectedDependency ? "Update" : "Create")}
         </Button>
       </DialogFooter>
     </form>

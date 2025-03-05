@@ -170,6 +170,8 @@ const SKUDependencyMapping = () => {
 
   const handleFormSubmit = async (formData: any) => {
     try {
+      console.log("Form data received:", formData);
+      
       // If it's an update to an existing dependency
       if (selectedDependency) {
         const { error } = await supabase
@@ -187,78 +189,55 @@ const SKUDependencyMapping = () => {
           description: "SKU dependency has been updated successfully",
         });
       } else {
-        // Check if product with this SKU already exists
-        const { data: existingProduct, error: checkError } = await supabase
-          .from("finished_products")
-          .select("id")
-          .eq("sku", formData.sku)
-          .maybeSingle();
-          
-        if (checkError) throw checkError;
-
-        let productId: string;
-        
-        if (existingProduct) {
-          // Use existing product
-          productId = existingProduct.id;
-        } else {
-          // Create new product based on SKU
-          const name = formData.sku.split('-')[0] || formData.sku;
-          
-          const { data: newProduct, error: createError } = await supabase
-            .from("finished_products")
-            .insert({
-              sku: formData.sku,
-              name: name,
-              quantity_in_stock: 0
-            })
-            .select("id")
-            .single();
-            
-          if (createError) throw createError;
-          
-          productId = newProduct.id;
-        }
-
-        // Insert raw material dependencies
+        // Insert raw material dependencies if any
         if (formData.raw_materials && formData.raw_materials.length > 0) {
           const rawMaterialInserts = formData.raw_materials
             .filter((item: any) => item.raw_material_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id: productId,
+              finished_product_id: formData.finished_product_id,
               raw_material_id: item.raw_material_id,
               component_type: "raw_material",
               item_type: "raw_material",
               quantity_required: item.quantity_required,
             }));
 
+          console.log("Raw material inserts:", rawMaterialInserts);
+
           if (rawMaterialInserts.length > 0) {
             const { error: rawError } = await supabase
               .from("sku_dependencies")
               .insert(rawMaterialInserts);
 
-            if (rawError) throw rawError;
+            if (rawError) {
+              console.error("Raw material insert error:", rawError);
+              throw rawError;
+            }
           }
         }
 
-        // Insert packaging dependencies
+        // Insert packaging dependencies if any
         if (formData.packaging_items && formData.packaging_items.length > 0) {
           const packagingInserts = formData.packaging_items
             .filter((item: any) => item.packaging_item_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id: productId,
+              finished_product_id: formData.finished_product_id,
               packaging_item_id: item.packaging_item_id,
               component_type: "packaging",
               item_type: "packaging",
               quantity_required: item.quantity_required,
             }));
 
+          console.log("Packaging inserts:", packagingInserts);
+
           if (packagingInserts.length > 0) {
             const { error: pkgError } = await supabase
               .from("sku_dependencies")
               .insert(packagingInserts);
 
-            if (pkgError) throw pkgError;
+            if (pkgError) {
+              console.error("Packaging insert error:", pkgError);
+              throw pkgError;
+            }
           }
         }
 
@@ -288,8 +267,8 @@ const SKUDependencyMapping = () => {
   const filteredDependencies = searchQuery
     ? skuDependencies?.filter(
         (dep) =>
-          dep.product_sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          dep.component_name.toLowerCase().includes(searchQuery.toLowerCase())
+          dep.product_sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          dep.component_name?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : skuDependencies;
 
