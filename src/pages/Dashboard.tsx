@@ -63,7 +63,7 @@ const Dashboard = () => {
   const { data: lowStockItems } = useQuery({
     queryKey: ["lowStockItems"],
     queryFn: async () => {
-      // Fetch low stock raw materials
+      // Fetch low stock raw materials (quantity < reorder_point)
       const { data: rawLowStock, error: rawError } = await supabase
         .from("raw_materials")
         .select("name, quantity_in_stock, reorder_point")
@@ -72,7 +72,7 @@ const Dashboard = () => {
       
       if (rawError) throw rawError;
 
-      // Fetch low stock packaging items
+      // Fetch low stock packaging items (quantity < reorder_point)
       const { data: packagingLowStock, error: packagingError } = await supabase
         .from("packaging_items")
         .select("name, quantity_in_stock, reorder_point")
@@ -273,7 +273,7 @@ const Dashboard = () => {
               <p className="text-sm text-muted-foreground">No low stock items</p>
             )}
             
-            {lowStockItems?.rawMaterials.slice(0, 3).map((item, index) => (
+            {lowStockItems?.rawMaterials.map((item, index) => (
               <div key={`raw-${index}`} className="flex items-center justify-between border-b pb-2">
                 <div>
                   <p className="font-medium">{item.name}</p>
@@ -286,7 +286,7 @@ const Dashboard = () => {
               </div>
             ))}
             
-            {lowStockItems?.packagingItems.slice(0, 3).map((item, index) => (
+            {lowStockItems?.packagingItems.map((item, index) => (
               <div key={`pkg-${index}`} className="flex items-center justify-between border-b pb-2">
                 <div>
                   <p className="font-medium">{item.name}</p>
@@ -360,7 +360,7 @@ const Dashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip formatter={(value) => [`₹${value}`, 'Sales']} />
                 <Legend />
                 <Line type="monotone" dataKey="sales" stroke="#8884d8" activeDot={{ r: 8 }} />
               </LineChart>

@@ -9,7 +9,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/components/ui/use-toast";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
 import { AlertCircle, Plus } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,19 +16,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const columns = [
   { key: "sku", label: "SKU" },
   { key: "name", label: "Name" },
-  { key: "volume_config", label: "Volume" },
   { key: "quantity_in_stock", label: "Quantity in Stock" },
-  { key: "unit_price", label: "Unit Price", isCurrency: true },
-  { key: "total_value", label: "Total Value", isCurrency: true },
+  { key: "unit_price", label: "Unit Price (₹)", isCurrency: true },
+  { key: "total_value", label: "Total Value (₹)", isCurrency: true },
   { key: "updated_at", label: "Last Updated", isDate: true },
-];
-
-const volumeOptions = [
-  { value: "essential_10ml", label: "10ml Essential Oil" },
-  { value: "essential_30ml", label: "30ml Essential Oil" },
-  { value: "carrier_30ml", label: "30ml Carrier Oil" },
-  { value: "carrier_70ml", label: "70ml Carrier Oil" },
-  { value: "carrier_140ml", label: "140ml Carrier Oil" },
 ];
 
 const FinishedGoods = () => {
@@ -37,7 +27,6 @@ const FinishedGoods = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [sku, setSku] = useState("");
-  const [volume, setVolume] = useState<string>("essential_10ml");
   const [quantity, setQuantity] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasDependency, setHasDependency] = useState(true);
@@ -145,7 +134,6 @@ const FinishedGoods = () => {
           .insert({
             sku: sku,
             name: name,
-            volume_config: volume as "essential_10ml" | "essential_30ml" | "carrier_30ml" | "carrier_70ml" | "carrier_140ml",
             quantity_in_stock: quantity,
             unit_price: 0, // Will be calculated by trigger
           });
@@ -206,7 +194,6 @@ const FinishedGoods = () => {
 
   const clearForm = () => {
     setSku("");
-    setVolume("essential_10ml");
     setQuantity(0);
     setHasDependency(true);
   };
@@ -263,22 +250,6 @@ const FinishedGoods = () => {
                 onChange={(e) => handleSkuChange(e.target.value)}
                 required
               />
-            </div>
-
-            <div>
-              <Label htmlFor="volume">Volume Configuration</Label>
-              <Select value={volume} onValueChange={setVolume} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select volume" />
-                </SelectTrigger>
-                <SelectContent>
-                  {volumeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div>

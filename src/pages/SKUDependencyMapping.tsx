@@ -187,6 +187,40 @@ const SKUDependencyMapping = () => {
           description: "SKU dependency has been updated successfully",
         });
       } else {
+        // Check if we need to create a finished product first
+        if (formData.sku && !formData.finished_product_id) {
+          // Check if product with this SKU already exists
+          const { data: existingProduct, error: checkError } = await supabase
+            .from("finished_products")
+            .select("id")
+            .eq("sku", formData.sku)
+            .maybeSingle();
+            
+          if (checkError) throw checkError;
+
+          if (existingProduct) {
+            // Use existing product
+            formData.finished_product_id = existingProduct.id;
+          } else {
+            // Create new product based on SKU
+            const name = formData.sku.split('-')[0] || formData.sku;
+            
+            const { data: newProduct, error: createError } = await supabase
+              .from("finished_products")
+              .insert({
+                sku: formData.sku,
+                name: name,
+                quantity_in_stock: 0
+              })
+              .select("id")
+              .single();
+              
+            if (createError) throw createError;
+            
+            formData.finished_product_id = newProduct.id;
+          }
+        }
+
         // For new dependencies, process each component type separately
         const { finished_product_id, raw_materials, packaging_items } = formData;
 
@@ -295,7 +329,7 @@ const SKUDependencyMapping = () => {
       />
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-hidden">
           {!selectedDependency && (
             <DialogHeader>
               <DialogTitle>Add SKU Dependency</DialogTitle>

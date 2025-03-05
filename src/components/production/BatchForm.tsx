@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+
+import React, { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,15 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
 
 const batchFormSchema = z.object({
@@ -28,7 +20,6 @@ const batchFormSchema = z.object({
   batch_number: z.string().min(2, {
     message: "Batch number must be at least 2 characters.",
   }),
-  production_date: z.date(),
   quantity_produced: z.number().min(1, {
     message: "Quantity produced must be at least 1.",
   }),
@@ -42,7 +33,6 @@ interface BatchFormProps {
 type BatchFormValues = z.infer<typeof batchFormSchema>;
 
 const BatchForm = ({ onSubmit, onClose }: BatchFormProps) => {
-  const [date, setDate] = useState<Date | undefined>(new Date());
   const { toast } = useToast();
 
   const form = useForm<BatchFormValues>({
@@ -50,7 +40,6 @@ const BatchForm = ({ onSubmit, onClose }: BatchFormProps) => {
     defaultValues: {
       finished_product_id: "",
       batch_number: "",
-      production_date: date || new Date(),
       quantity_produced: 1,
     },
   });
@@ -101,14 +90,10 @@ const BatchForm = ({ onSubmit, onClose }: BatchFormProps) => {
 
     await onSubmit({
       ...values,
-      production_date: date,
+      production_date: new Date(), // Automatically use current date/time
     });
     onClose();
   }
-
-  useEffect(() => {
-    form.setValue("production_date", date || new Date());
-  }, [date, form]);
 
   return (
     <form onSubmit={form.handleSubmit(onSubmitHandler)} className="space-y-8">
@@ -152,35 +137,6 @@ const BatchForm = ({ onSubmit, onClose }: BatchFormProps) => {
               {form.formState.errors.batch_number.message}
             </p>
           )}
-        </div>
-
-        <div>
-          <Label>Production Date</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant={"outline"}
-                className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !date && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date ? format(date, "PPP") : <span>Pick a date</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="center" side="bottom">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                disabled={(date) =>
-                  date > new Date()
-                }
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
         </div>
 
         <div>

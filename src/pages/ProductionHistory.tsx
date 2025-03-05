@@ -18,15 +18,9 @@ const columns = [
   { key: "notes", label: "Notes" },
 ];
 
-interface BatchItem {
-  product_id: string;
-  quantity: number;
-}
-
 const ProductionHistory = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
-  const [batchItems, setBatchItems] = useState<BatchItem[]>([{ product_id: "", quantity: 0 }]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -138,83 +132,36 @@ const ProductionHistory = () => {
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget as HTMLFormElement);
-    const data = {
-      status: formData.get("status") as string,
-      notes: formData.get("notes") as string,
-      product_id: batchItems[0].product_id, // First product for compatibility
-      production_date: new Date().toISOString()
-    };
-
+  const handleSubmit = async (data: any) => {
     try {
-      if (selectedBatch) {
-        // Update existing batch
-        const { error: batchError } = await supabase
-          .from("production_batches")
-          .update({
-            ...data,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", selectedBatch.id);
-        
-        if (batchError) throw batchError;
+      // Create new batch
+      const { data: newBatch, error: batchError } = await supabase
+        .from("production_batches")
+        .insert({
+          batch_number: data.batch_number,
+          product_id: data.finished_product_id,
+          production_date: new Date().toISOString(),
+          status: "completed",
+          notes: ""
+        })
+        .select()
+        .single();
 
-        // Delete existing items
-        const { error: deleteError } = await supabase
-          .from("production_batch_items")
-          .delete()
-          .eq("batch_id", selectedBatch.id);
+      if (batchError) throw batchError;
 
-        if (deleteError) throw deleteError;
+      // Insert batch items
+      const batchItem = {
+        batch_id: newBatch.id,
+        item_id: data.finished_product_id,
+        quantity: data.quantity_produced,
+        item_type: 'finished_product' as const
+      };
 
-        // Insert new items
-        const batchItemsData = batchItems
-          .filter(item => item.product_id && item.quantity > 0)
-          .map(item => ({
-            batch_id: selectedBatch.id,
-            item_id: item.product_id,
-            quantity: item.quantity,
-            item_type: 'finished_product' as const
-          }));
+      const { error: itemsError } = await supabase
+        .from("production_batch_items")
+        .insert(batchItem);
 
-        if (batchItemsData.length > 0) {
-          const { error: itemsError } = await supabase
-            .from("production_batch_items")
-            .insert(batchItemsData);
-
-          if (itemsError) throw itemsError;
-        }
-
-      } else {
-        // Create new batch
-        const { data: newBatch, error: batchError } = await supabase
-          .from("production_batches")
-          .insert(data)
-          .select()
-          .single();
-
-        if (batchError) throw batchError;
-
-        // Insert batch items
-        const batchItemsData = batchItems
-          .filter(item => item.product_id && item.quantity > 0)
-          .map(item => ({
-            batch_id: newBatch.id,
-            item_id: item.product_id,
-            quantity: item.quantity,
-            item_type: 'finished_product' as const
-          }));
-
-        if (batchItemsData.length > 0) {
-          const { error: itemsError } = await supabase
-            .from("production_batch_items")
-            .insert(batchItemsData);
-
-          if (itemsError) throw itemsError;
-        }
-      }
+      if (itemsError) throw itemsError;
 
       await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
@@ -224,7 +171,7 @@ const ProductionHistory = () => {
       
       toast({
         title: "Success",
-        description: `Batch ${selectedBatch ? "updated" : "added"} successfully.`,
+        description: `Batch added successfully.`,
       });
       handleClose();
     } catch (error) {
@@ -240,42 +187,16 @@ const ProductionHistory = () => {
   const handleClose = () => {
     setIsDialogOpen(false);
     setSelectedBatch(null);
-    setBatchItems([{ product_id: "", quantity: 0 }]);
   };
 
   const handleAdd = () => {
     setSelectedBatch(null);
-    setBatchItems([{ product_id: "", quantity: 0 }]);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (batch: any) => {
     setSelectedBatch(batch);
-    
-    // Map batch items
-    const items = batch.production_batch_items?.map((item: any) => ({
-      product_id: item.item_id,
-      quantity: item.quantity,
-    })) || [{ product_id: "", quantity: 0 }];
-    
-    setBatchItems(items);
     setIsDialogOpen(true);
-  };
-
-  const addBatchItem = () => {
-    setBatchItems([...batchItems, { product_id: "", quantity: 0 }]);
-  };
-
-  const removeBatchItem = (index: number) => {
-    if (batchItems.length > 1) {
-      setBatchItems(batchItems.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateBatchItem = (index: number, field: keyof BatchItem, value: any) => {
-    const newItems = [...batchItems];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setBatchItems(newItems);
   };
 
   const handleDelete = async () => {
@@ -347,18 +268,12 @@ const ProductionHistory = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedBatch ? "Edit" : "Add"} Production Batch
+              Add Production Batch
             </DialogTitle>
           </DialogHeader>
           <BatchForm
-            selectedBatch={selectedBatch}
-            batchItems={batchItems}
-            products={availableProducts || []}
             onSubmit={handleSubmit}
             onClose={handleClose}
-            onAddItem={addBatchItem}
-            onRemoveItem={removeBatchItem}
-            onUpdateItem={updateBatchItem}
           />
         </DialogContent>
       </Dialog>

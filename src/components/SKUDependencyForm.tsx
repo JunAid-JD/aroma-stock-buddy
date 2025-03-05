@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Trash, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 interface RawMaterialItem {
   raw_material_id: string;
@@ -73,10 +73,10 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!finishedProductId && !selectedDependency) {
+    if (!finishedProductId && !skuInput && !selectedDependency) {
       toast({
         title: "Error",
-        description: "Please select a finished product",
+        description: "Please enter a product SKU or select a finished product",
         variant: "destructive",
       });
       return;
@@ -113,6 +113,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     // Submit the form with all components
     onSubmit({
       finished_product_id: finishedProductId,
+      sku: skuInput,
       raw_materials: rawMaterialItems.filter(item => item.raw_material_id),
       packaging_items: packagingItemsList.filter(item => item.packaging_item_id),
     });
@@ -181,7 +182,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
       {!selectedDependency && (
         <div>
           <DialogHeader>
@@ -215,27 +216,11 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                 className="mb-2"
               />
               
-              <div className="flex justify-between">
-                <Select
-                  value={finishedProductId}
-                  onValueChange={setFinishedProductId}
-                >
-                  <SelectTrigger id="finished_product_id">
-                    <SelectValue placeholder="Or select a product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {finishedProducts.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex justify-end mb-4">
                 <Button
                   type="button"
                   onClick={searchProductBySku}
                   variant="outline"
-                  className="ml-2"
                 >
                   Find
                 </Button>
@@ -247,9 +232,9 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
               
               {rawMaterialItems.map((item, index) => (
                 <div key={`raw-${index}`} className="flex items-center space-x-2 mb-4">
-                  <div className="grid grid-cols-2 gap-2 flex-grow">
+                  <div className="grid grid-cols-2 gap-4 flex-grow">
                     <div>
-                      <Label htmlFor={`raw-material-${index}`} className="sr-only">
+                      <Label htmlFor={`raw-material-${index}`}>
                         Raw Material
                       </Label>
                       <Select
@@ -271,7 +256,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor={`raw-quantity-${index}`} className="sr-only">
+                      <Label htmlFor={`raw-quantity-${index}`}>
                         Quantity
                       </Label>
                       <Input
@@ -298,6 +283,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                     size="icon"
                     onClick={() => removeRawMaterialItem(index)}
                     disabled={rawMaterialItems.length <= 1}
+                    className="self-end mt-8"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -319,9 +305,9 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
               
               {packagingItemsList.map((item, index) => (
                 <div key={`pkg-${index}`} className="flex items-center space-x-2 mb-4">
-                  <div className="grid grid-cols-2 gap-2 flex-grow">
+                  <div className="grid grid-cols-2 gap-4 flex-grow">
                     <div>
-                      <Label htmlFor={`packaging-${index}`} className="sr-only">
+                      <Label htmlFor={`packaging-${index}`}>
                         Packaging Item
                       </Label>
                       <Select
@@ -343,7 +329,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor={`pkg-quantity-${index}`} className="sr-only">
+                      <Label htmlFor={`pkg-quantity-${index}`}>
                         Quantity
                       </Label>
                       <Input
@@ -370,6 +356,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                     size="icon"
                     onClick={() => removePackagingItem(index)}
                     disabled={packagingItemsList.length <= 1}
+                    className="self-end mt-8"
                   >
                     <X className="h-4 w-4" />
                   </Button>
