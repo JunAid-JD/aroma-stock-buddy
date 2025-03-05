@@ -67,7 +67,7 @@ const Dashboard = () => {
       const { data: rawLowStock, error: rawError } = await supabase
         .from("raw_materials")
         .select("name, quantity_in_stock, reorder_point")
-        .lt("quantity_in_stock", "reorder_point")
+        .filter('quantity_in_stock', 'lt', supabase.raw('reorder_point'))
         .order("name");
       
       if (rawError) throw rawError;
@@ -76,7 +76,7 @@ const Dashboard = () => {
       const { data: packagingLowStock, error: packagingError } = await supabase
         .from("packaging_items")
         .select("name, quantity_in_stock, reorder_point")
-        .lt("quantity_in_stock", "reorder_point")
+        .filter('quantity_in_stock', 'lt', supabase.raw('reorder_point'))
         .order("name");
       
       if (packagingError) throw packagingError;
@@ -150,11 +150,11 @@ const Dashboard = () => {
     },
   });
 
-  // Format currency
+  // Format currency for Pakistani Rupees
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-IN', {
+    return new Intl.NumberFormat('ur-PK', {
       style: 'currency',
-      currency: 'INR',
+      currency: 'PKR',
       maximumFractionDigits: 0
     }).format(value);
   };
@@ -360,7 +360,7 @@ const Dashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(value) => [`₹${value}`, 'Sales']} />
+                <Tooltip formatter={(value) => [`₨${value}`, 'Sales']} />
                 <Legend />
                 <Line type="monotone" dataKey="sales" stroke="#8884d8" activeDot={{ r: 8 }} />
               </LineChart>

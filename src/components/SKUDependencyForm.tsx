@@ -73,15 +73,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!finishedProductId && !skuInput && !selectedDependency) {
-      toast({
-        title: "Error",
-        description: "Please enter a product SKU or select a finished product",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    
     // If editing an existing dependency, just update that specific one
     if (selectedDependency) {
       onSubmit({
@@ -89,6 +81,16 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         quantity_required: selectedDependency.component_type === "raw_material"
           ? rawMaterialItems[0].quantity_required
           : packagingItemsList[0].quantity_required,
+      });
+      return;
+    }
+
+    // We need a SKU to create a finished product
+    if (!skuInput) {
+      toast({
+        title: "Error",
+        description: "Please enter a product SKU",
+        variant: "destructive",
       });
       return;
     }
@@ -112,7 +114,6 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
 
     // Submit the form with all components
     onSubmit({
-      finished_product_id: finishedProductId,
       sku: skuInput,
       raw_materials: rawMaterialItems.filter(item => item.raw_material_id),
       packaging_items: packagingItemsList.filter(item => item.packaging_item_id),
@@ -165,22 +166,6 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     setPackagingItemsList(newItems);
   };
 
-  // Search product by SKU
-  const searchProductBySku = () => {
-    if (!skuInput) return;
-
-    const product = finishedProducts.find((p) => p.sku === skuInput);
-    if (product) {
-      setFinishedProductId(product.id);
-    } else {
-      toast({
-        title: "Product not found",
-        description: `No product found with SKU: ${skuInput}`,
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
       {!selectedDependency && (
@@ -215,16 +200,6 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
                 placeholder="Enter finished product SKU"
                 className="mb-2"
               />
-              
-              <div className="flex justify-end mb-4">
-                <Button
-                  type="button"
-                  onClick={searchProductBySku}
-                  variant="outline"
-                >
-                  Find
-                </Button>
-              </div>
             </div>
 
             <div className="space-y-4 pt-4 border-t">

@@ -187,49 +187,45 @@ const SKUDependencyMapping = () => {
           description: "SKU dependency has been updated successfully",
         });
       } else {
-        // Check if we need to create a finished product first
-        if (formData.sku && !formData.finished_product_id) {
-          // Check if product with this SKU already exists
-          const { data: existingProduct, error: checkError } = await supabase
-            .from("finished_products")
-            .select("id")
-            .eq("sku", formData.sku)
-            .maybeSingle();
-            
-          if (checkError) throw checkError;
+        // Check if product with this SKU already exists
+        const { data: existingProduct, error: checkError } = await supabase
+          .from("finished_products")
+          .select("id")
+          .eq("sku", formData.sku)
+          .maybeSingle();
+          
+        if (checkError) throw checkError;
 
-          if (existingProduct) {
-            // Use existing product
-            formData.finished_product_id = existingProduct.id;
-          } else {
-            // Create new product based on SKU
-            const name = formData.sku.split('-')[0] || formData.sku;
+        let productId: string;
+        
+        if (existingProduct) {
+          // Use existing product
+          productId = existingProduct.id;
+        } else {
+          // Create new product based on SKU
+          const name = formData.sku.split('-')[0] || formData.sku;
+          
+          const { data: newProduct, error: createError } = await supabase
+            .from("finished_products")
+            .insert({
+              sku: formData.sku,
+              name: name,
+              quantity_in_stock: 0
+            })
+            .select("id")
+            .single();
             
-            const { data: newProduct, error: createError } = await supabase
-              .from("finished_products")
-              .insert({
-                sku: formData.sku,
-                name: name,
-                quantity_in_stock: 0
-              })
-              .select("id")
-              .single();
-              
-            if (createError) throw createError;
-            
-            formData.finished_product_id = newProduct.id;
-          }
+          if (createError) throw createError;
+          
+          productId = newProduct.id;
         }
 
-        // For new dependencies, process each component type separately
-        const { finished_product_id, raw_materials, packaging_items } = formData;
-
         // Insert raw material dependencies
-        if (raw_materials && raw_materials.length > 0) {
-          const rawMaterialInserts = raw_materials
+        if (formData.raw_materials && formData.raw_materials.length > 0) {
+          const rawMaterialInserts = formData.raw_materials
             .filter((item: any) => item.raw_material_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id,
+              finished_product_id: productId,
               raw_material_id: item.raw_material_id,
               component_type: "raw_material",
               item_type: "raw_material",
@@ -246,11 +242,11 @@ const SKUDependencyMapping = () => {
         }
 
         // Insert packaging dependencies
-        if (packaging_items && packaging_items.length > 0) {
-          const packagingInserts = packaging_items
+        if (formData.packaging_items && formData.packaging_items.length > 0) {
+          const packagingInserts = formData.packaging_items
             .filter((item: any) => item.packaging_item_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id,
+              finished_product_id: productId,
               packaging_item_id: item.packaging_item_id,
               component_type: "packaging",
               item_type: "packaging",
@@ -279,6 +275,7 @@ const SKUDependencyMapping = () => {
       // Close the form
       setIsFormOpen(false);
     } catch (error: any) {
+      console.error("Form submission error:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to save dependency",
