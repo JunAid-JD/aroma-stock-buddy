@@ -1,179 +1,154 @@
 
-import React from "react";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
-import {
-  DialogClose,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { DialogFooter } from "@/components/ui/dialog";
+import { Plus, X } from "lucide-react";
+import { useState } from "react";
 
-const batchFormSchema = z.object({
-  finished_product_id: z.string().min(1, { message: "Please select a finished product." }),
-  batch_number: z.string().min(2, {
-    message: "Batch number must be at least 2 characters.",
-  }),
-  quantity_produced: z.number().min(1, {
-    message: "Quantity produced must be at least 1.",
-  }),
-});
-
-interface BatchFormProps {
-  onSubmit: (data: any) => Promise<void>;
-  onClose: () => void;
+export interface BatchItem {
+  item_id: string;
+  item_type: "finished_product";
+  quantity: number;
 }
 
-type BatchFormValues = z.infer<typeof batchFormSchema>;
+interface BatchFormProps {
+  selectedBatch: any;
+  batchItems: BatchItem[];
+  finishedProducts: any[];
+  onSubmit: (e: React.FormEvent) => void;
+  onClose: () => void;
+  onAddItem: () => void;
+  onRemoveItem: (index: number) => void;
+  onUpdateItem: (index: number, field: keyof BatchItem, value: any) => void;
+}
 
-const BatchForm = ({ onSubmit, onClose }: BatchFormProps) => {
-  const { toast } = useToast();
-
-  const form = useForm<BatchFormValues>({
-    resolver: zodResolver(batchFormSchema),
-    defaultValues: {
-      finished_product_id: "",
-      batch_number: "",
-      quantity_produced: 1,
-    },
-  });
-
-  const { data: finishedProducts, isLoading } = useQuery({
-    queryKey: ["finishedProducts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("finished_products")
-        .select("id, name, sku")
-        .order("name");
-
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  // Function to check if a finished product has dependencies
-  const checkDependencies = async (productId: string) => {
-    try {
-      // First, get the product's SKU
-      const { data: productData, error: productError } = await supabase
-        .from("finished_products")
-        .select("sku")
-        .eq("id", productId)
-        .single();
-      
-      if (productError) throw productError;
-      
-      // Check for dependencies using the SKU instead of ID
-      const { data, error } = await supabase
-        .from("sku_dependencies")
-        .select("*")
-        .eq("finished_product_sku", productData.sku)
-        .limit(1);
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        toast({
-          title: "Warning: No dependencies defined",
-          description: `This product has no raw materials or packaging defined. Production may be inaccurate.`,
-          variant: "destructive",
-        });
-        return false;
-      }
-      return true;
-    } catch (error: any) {
-      console.error("Error checking dependencies:", error);
-      return false;
-    }
+const BatchForm = ({
+  selectedBatch,
+  batchItems,
+  finishedProducts,
+  onSubmit,
+  onClose,
+  onAddItem,
+  onRemoveItem,
+  onUpdateItem,
+}: BatchFormProps) => {
+  // Helper function to get finished product name by ID
+  const getProductNameById = (id: string) => {
+    if (!id || !finishedProducts) return "Unknown product";
+    const product = finishedProducts.find(p => p.id === id);
+    return product ? product.name : "Unknown product";
   };
-
-  async function onSubmitHandler(values: BatchFormValues) {
-    const hasDependencies = await checkDependencies(values.finished_product_id);
-    if (!hasDependencies) {
-      return;
-    }
-
-    await onSubmit({
-      ...values,
-      production_date: new Date(), // Automatically use current date/time
-    });
-    onClose();
-  }
-
+  
   return (
-    <form onSubmit={form.handleSubmit(onSubmitHandler)} className="space-y-8">
-      <div className="grid grid-cols-1 gap-4">
+    <form onSubmit={onSubmit} className="max-h-[80vh] overflow-y-auto">
+      <div className="space-y-4">
         <div>
-          <Label htmlFor="finished_product_id">Finished Product</Label>
-          <Controller
-            name="finished_product_id"
-            control={form.control}
-            render={({ field }) => (
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a finished product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {finishedProducts?.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.name} ({product.sku})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+          <Label htmlFor="batch_id">Batch ID</Label>
+          <Input
+            id="batch_id"
+            name="batch_id"
+            defaultValue={selectedBatch?.batch_number || ""}
+            placeholder="Enter a custom batch ID"
+            required
           />
-          {form.formState.errors.finished_product_id && (
-            <p className="text-sm text-red-500">
-              {form.formState.errors.finished_product_id.message}
-            </p>
-          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Batch Items</Label>
+          {Array.isArray(batchItems) && batchItems.map((item, index) => (
+            <div key={index} className="flex gap-2 items-end border p-4 rounded-md">
+              <div className="flex-1">
+                <Label htmlFor={`product_${index}`}>Finished Product</Label>
+                <Select 
+                  value={item.item_id || ""}
+                  onValueChange={(value) => onUpdateItem(index, 'item_id', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.isArray(finishedProducts) && finishedProducts.map((product: any) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name || 'Unknown'} ({product.sku || 'Unknown'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-32">
+                <Label htmlFor={`quantity_${index}`}>Quantity</Label>
+                <Input
+                  id={`quantity_${index}`}
+                  type="number"
+                  value={item.quantity || 0}
+                  onChange={(e) => onUpdateItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                  min="1"
+                  required
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="mb-0.5"
+                onClick={() => onRemoveItem(index)}
+                disabled={!Array.isArray(batchItems) || batchItems.length <= 1}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onAddItem}
+            className="w-full"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Item
+          </Button>
         </div>
 
         <div>
-          <Label htmlFor="batch_number">Batch Number</Label>
-          <Input
-            id="batch_number"
-            type="text"
-            {...form.register("batch_number")}
-          />
-          {form.formState.errors.batch_number && (
-            <p className="text-sm text-red-500">
-              {form.formState.errors.batch_number.message}
-            </p>
-          )}
+          <Label htmlFor="status">Status</Label>
+          <Select 
+            name="status" 
+            defaultValue={selectedBatch?.status || "in_progress"}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
-          <Label htmlFor="quantity_produced">Quantity Produced</Label>
+          <Label htmlFor="notes">Notes</Label>
           <Input
-            id="quantity_produced"
-            type="number"
-            {...form.register("quantity_produced", { valueAsNumber: true })}
+            id="notes"
+            name="notes"
+            defaultValue={selectedBatch?.notes || ""}
           />
-          {form.formState.errors.quantity_produced && (
-            <p className="text-sm text-red-500">
-              {form.formState.errors.quantity_produced.message}
-            </p>
-          )}
         </div>
       </div>
 
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button type="button" variant="secondary">
-            Cancel
-          </Button>
-        </DialogClose>
-        <Button type="submit">Submit</Button>
+      <DialogFooter className="mt-6">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+        <Button type="submit">
+          {selectedBatch ? "Update" : "Create"}
+        </Button>
       </DialogFooter>
     </form>
   );

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Edit, Search, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
-interface DataTableProps {
+export interface DataTableProps {
   columns: { 
     key: string; 
     label: string;
@@ -24,9 +24,10 @@ interface DataTableProps {
   isLoading?: boolean;
   onEdit?: (item: any) => void;
   onDelete?: (item: any) => void;
+  onEditClick?: (item: any) => void; // Added for backwards compatibility
 }
 
-const DataTable = ({ columns, data, isLoading = false, onEdit, onDelete }: DataTableProps) => {
+const DataTable = ({ columns, data, isLoading = false, onEdit, onDelete, onEditClick }: DataTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   if (isLoading) {
@@ -45,6 +46,9 @@ const DataTable = ({ columns, data, isLoading = false, onEdit, onDelete }: DataT
     }
     return value;
   };
+
+  // Use onEdit if available, otherwise fallback to onEditClick
+  const handleEdit = onEdit || onEditClick;
 
   return (
     <Card>
@@ -65,7 +69,7 @@ const DataTable = ({ columns, data, isLoading = false, onEdit, onDelete }: DataT
                 {columns.map((column) => (
                   <TableHead key={column.key}>{column.label}</TableHead>
                 ))}
-                {(onEdit || onDelete) && <TableHead>Actions</TableHead>}
+                {(handleEdit || onDelete) && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -76,14 +80,14 @@ const DataTable = ({ columns, data, isLoading = false, onEdit, onDelete }: DataT
                       {formatValue(row[column.key], column.isDate)}
                     </TableCell>
                   ))}
-                  {(onEdit || onDelete) && (
+                  {(handleEdit || onDelete) && (
                     <TableCell>
                       <div className="flex gap-2">
-                        {onEdit && (
+                        {handleEdit && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => onEdit(row)}
+                            onClick={() => handleEdit(row)}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>

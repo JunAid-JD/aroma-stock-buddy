@@ -398,10 +398,8 @@ export type Database = {
       }
       sku_dependencies: {
         Row: {
-          component_type: Database["public"]["Enums"]["product_category"]
           created_at: string | null
           finished_product_id: string | null
-          finished_product_sku: string | null
           id: string
           item_type: Database["public"]["Enums"]["product_category"]
           packaging_item_id: string | null
@@ -410,22 +408,18 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          component_type?: Database["public"]["Enums"]["product_category"]
           created_at?: string | null
           finished_product_id?: string | null
-          finished_product_sku?: string | null
           id?: string
-          item_type?: Database["public"]["Enums"]["product_category"]
+          item_type: Database["public"]["Enums"]["product_category"]
           packaging_item_id?: string | null
           quantity_required?: number
           raw_material_id?: string | null
           updated_at?: string | null
         }
         Update: {
-          component_type?: Database["public"]["Enums"]["product_category"]
           created_at?: string | null
           finished_product_id?: string | null
-          finished_product_sku?: string | null
           id?: string
           item_type?: Database["public"]["Enums"]["product_category"]
           packaging_item_id?: string | null
@@ -465,12 +459,6 @@ export type Database = {
       calculate_finished_product_cost: {
         Args: {
           p_finished_product_id: string
-        }
-        Returns: number
-      }
-      calculate_product_cost: {
-        Args: {
-          product_sku: string
         }
         Returns: number
       }

@@ -1,465 +1,327 @@
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO, subDays } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import { 
-  AlertTriangle, 
-  ArrowUpRight, 
-  CircleDollarSign, 
-  Package, 
-  ShoppingCart
-} from "lucide-react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-
-// Custom colors for charts
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+import { AreaChart, BarChart, LineChart } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 const Dashboard = () => {
-  const navigate = useNavigate();
-  const [inventoryValue, setInventoryValue] = useState({
-    rawMaterials: 0,
-    packaging: 0,
-    finishedProducts: 0,
-    total: 0
-  });
-  
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("overview");
 
-  // Fetch raw materials
-  const { data: rawMaterials } = useQuery({
-    queryKey: ["rawMaterials"],
+  // Fetch inventory stats
+  const { data: inventoryStats, isLoading: isLoadingInventory } = useQuery({
+    queryKey: ["inventoryStats"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch raw materials counts
+      const { data: rawMaterials, error: rawError } = await supabase
         .from("raw_materials")
-        .select("*")
-        .order("name");
-      
-      if (error) throw error;
-      return data;
-    },
-  });
+        .select("*");
 
-  // Fetch packaging items
-  const { data: packagingItems } = useQuery({
-    queryKey: ["packagingItems"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+      if (rawError) throw rawError;
+
+      // Fetch packaging items counts
+      const { data: packagingItems, error: packagingError } = await supabase
         .from("packaging_items")
-        .select("*")
-        .order("name");
-      
-      if (error) throw error;
-      return data;
-    },
-  });
+        .select("*");
 
-  // Fetch finished products
-  const { data: finishedProducts } = useQuery({
-    queryKey: ["finishedProducts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+      if (packagingError) throw packagingError;
+
+      // Fetch finished products counts
+      const { data: finishedProducts, error: finishedError } = await supabase
         .from("finished_products")
-        .select("*")
-        .order("name");
-      
-      if (error) throw error;
-      return data;
-    },
-  });
+        .select("*");
 
-  // Fetch recent purchase records
-  const { data: purchases } = useQuery({
-    queryKey: ["recentPurchases"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_records")
-        .select("*")
-        .order("date", { ascending: false })
-        .limit(5);
+      if (finishedError) throw finishedError;
+
+      // Calculate totals and items below reorder point
+      const rawMaterialsCount = rawMaterials?.length || 0;
+      const packagingItemsCount = packagingItems?.length || 0;
+      const finishedProductsCount = finishedProducts?.length || 0;
+
+      const rawMaterialsBelowReorder = rawMaterials?.filter(
+        (item) => item.quantity_in_stock < item.reorder_point
+      ).length || 0;
       
-      if (error) throw error;
-      return data.map(purchase => ({
-        ...purchase,
-        type: "purchase"
-      }));
+      const packagingItemsBelowReorder = packagingItems?.filter(
+        (item) => item.quantity_in_stock < item.reorder_point
+      ).length || 0;
+
+      // Calculate total inventory value
+      const rawMaterialsValue = rawMaterials?.reduce(
+        (sum, item) => sum + (parseFloat(String(item.total_value)) || 0), 
+        0
+      ) || 0;
+      
+      const packagingValue = packagingItems?.reduce(
+        (sum, item) => sum + (parseFloat(String(item.total_value)) || 0), 
+        0
+      ) || 0;
+      
+      const finishedProductsValue = finishedProducts?.reduce(
+        (sum, item) => sum + (parseFloat(String(item.total_value)) || 0), 
+        0
+      ) || 0;
+
+      return {
+        rawMaterialsCount,
+        packagingItemsCount,
+        finishedProductsCount,
+        rawMaterialsBelowReorder,
+        packagingItemsBelowReorder,
+        totalItems: rawMaterialsCount + packagingItemsCount + finishedProductsCount,
+        totalValue: rawMaterialsValue + packagingValue + finishedProductsValue,
+        inventoryComposition: [
+          { name: "Raw Materials", value: rawMaterialsValue },
+          { name: "Packaging", value: packagingValue },
+          { name: "Finished Products", value: finishedProductsValue },
+        ],
+      };
     },
   });
 
   // Fetch recent production batches
-  const { data: productions } = useQuery({
-    queryKey: ["recentProductions"],
+  const { data: recentBatches } = useQuery({
+    queryKey: ["recentBatches"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get production batches with their related finished product
+      const { data: batches, error } = await supabase
         .from("production_batches")
-        .select("*")
-        .order("production_date", { ascending: false })
+        .select(`
+          id,
+          batch_number,
+          status,
+          created_at,
+          product_id,
+          finished_products:product_id (
+            name, 
+            sku
+          )
+        `)
+        .order("created_at", { ascending: false })
         .limit(5);
-      
+
       if (error) throw error;
-      return data.map(production => ({
-        ...production,
-        type: "production",
-        date: production.production_date
-      }));
+      
+      return batches.map(batch => {
+        return {
+          ...batch,
+          product_name: batch.finished_products ? batch.finished_products.name : 'Unknown Product',
+          product_sku: batch.finished_products ? batch.finished_products.sku : 'Unknown SKU'
+        };
+      });
     },
   });
 
-  // Get raw materials that are below reorder point
-  const rawMaterialsLowStock = rawMaterials?.filter(item => 
-    item.quantity_in_stock <= item.reorder_point
-  ) || [];
-
-  // Get packaging items that are below reorder point
-  const packagingItemsLowStock = packagingItems?.filter(item => 
-    item.quantity_in_stock <= item.reorder_point
-  ) || [];
-
-  // Combine low stock items
-  const lowStockItems = [...rawMaterialsLowStock, ...packagingItemsLowStock];
-
-  // Calculate inventory statistics
-  useEffect(() => {
-    if (rawMaterials && packagingItems && finishedProducts) {
-      const rawMaterialsValue = rawMaterials.reduce((sum, item) => sum + (item.total_value || 0), 0);
-      const packagingValue = packagingItems.reduce((sum, item) => sum + (item.total_value || 0), 0);
-      const finishedProductsValue = finishedProducts.reduce((sum, item) => sum + (item.total_value || 0), 0);
-      
-      setInventoryValue({
-        rawMaterials: rawMaterialsValue,
-        packaging: packagingValue,
-        finishedProducts: finishedProductsValue,
-        total: rawMaterialsValue + packagingValue + finishedProductsValue
-      });
-    }
-  }, [rawMaterials, packagingItems, finishedProducts]);
-
-  // Combine recent activities
-  useEffect(() => {
-    if (purchases && productions) {
-      const combined = [...purchases, ...productions]
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 10);
-      setRecentActivity(combined);
-    }
-  }, [purchases, productions]);
-
-  // Prepare data for inventory breakdown chart
-  const inventoryBreakdownData = [
-    { name: 'Raw Materials', value: inventoryValue.rawMaterials },
-    { name: 'Packaging', value: inventoryValue.packaging },
-    { name: 'Finished Products', value: inventoryValue.finishedProducts },
+  // Mock data for charts
+  const productionTrendData = [
+    { month: "Jan", productions: 65 },
+    { month: "Feb", productions: 59 },
+    { month: "Mar", productions: 80 },
+    { month: "Apr", productions: 81 },
+    { month: "May", productions: 56 },
+    { month: "Jun", productions: 55 },
   ];
 
-  // Format currency for PKR (Pakistani Rupees)
-  const formatCurrency = (value: number) => {
-    return `PKR ${value.toLocaleString('en-PK')}`;
-  };
-
-  // Get data for recent purchases chart
-  const getLast7DaysPurchases = () => {
-    if (!purchases) return [];
-    
-    const lastSevenDays = Array.from({ length: 7 }, (_, i) => {
-      const date = subDays(new Date(), i);
-      return {
-        date: format(date, 'yyyy-MM-dd'),
-        displayDate: format(date, 'MMM dd'),
-        amount: 0
-      };
-    }).reverse();
-    
-    purchases.forEach(purchase => {
-      const purchaseDate = format(parseISO(purchase.date), 'yyyy-MM-dd');
-      const dayData = lastSevenDays.find(day => day.date === purchaseDate);
-      if (dayData) {
-        dayData.amount += purchase.total_cost;
-      }
-    });
-    
-    return lastSevenDays;
-  };
+  const inventoryChartData = [
+    { month: "Jan", raw: 4000, packaging: 2400, finished: 2400 },
+    { month: "Feb", raw: 3000, packaging: 1398, finished: 2210 },
+    { month: "Mar", raw: 2000, packaging: 9800, finished: 2290 },
+    { month: "Apr", raw: 2780, packaging: 3908, finished: 2000 },
+    { month: "May", raw: 1890, packaging: 4800, finished: 2181 },
+    { month: "Jun", raw: 2390, packaging: 3800, finished: 2500 },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">
-          Overview of your inventory and recent activity
-        </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">
+            Welcome to your inventory management dashboard
+          </p>
+        </div>
       </div>
-      
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Inventory Value
-            </CardTitle>
-            <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(inventoryValue.total)}</div>
-            <p className="text-xs text-muted-foreground">
-              Combined value of all inventory items
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Raw Materials
-            </CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{rawMaterials?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {formatCurrency(inventoryValue.rawMaterials)} total value
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Packaging Items
-            </CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{packagingItems?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {formatCurrency(inventoryValue.packaging)} total value
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Finished Products
-            </CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{finishedProducts?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {formatCurrency(inventoryValue.finishedProducts)} total value
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Recent Spending</CardTitle>
-            <CardDescription>
-              Purchase history for the last 7 days
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={getLast7DaysPurchases()}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="displayDate" />
-                <YAxis tickFormatter={(value) => `PKR ${value}`} />
-                <Tooltip 
-                  formatter={(value) => [`PKR ${Number(value).toLocaleString('en-PK')}`, 'Amount']}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Bar dataKey="amount" fill="#8884d8" name="Purchases" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-        
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Inventory Breakdown</CardTitle>
-            <CardDescription>
-              Distribution of inventory value
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={inventoryBreakdownData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                  nameKey="name"
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                >
-                  {inventoryBreakdownData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Low Stock Items</CardTitle>
-            <CardDescription>
-              Items below reorder point
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {lowStockItems.length > 0 ? (
-              <div className="space-y-4">
-                {lowStockItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">{item.sku}</p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="destructive" className="mb-1 flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        {item.quantity_in_stock} / {item.reorder_point}
-                      </Badge>
-                      <p className="text-xs">{formatCurrency(item.unit_cost)}</p>
-                    </div>
-                  </div>
-                ))}
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={() => navigate('/purchase-records')}
-                >
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  Record Purchase
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <Package className="h-10 w-10 text-muted-foreground mb-2" />
-                <p className="text-muted-foreground">All items are above reorder point</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>
-              Latest purchases and production
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="all">
-              <TabsList className="mb-4">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="purchases">Purchases</TabsTrigger>
-                <TabsTrigger value="production">Production</TabsTrigger>
-              </TabsList>
-              <TabsContent value="all" className="space-y-4">
-                {recentActivity.length > 0 ? (
-                  recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-center justify-between border-b pb-2">
-                      <div>
-                        <div className="flex items-center">
-                          {activity.type === "purchase" ? (
-                            <Badge className="mr-2 bg-blue-500">Purchase</Badge>
-                          ) : (
-                            <Badge className="mr-2 bg-green-500">Production</Badge>
-                          )}
-                          {activity.type === "purchase" ? (
-                            <p className="font-medium">{activity.supplier}</p>
-                          ) : (
-                            <p className="font-medium">Batch {activity.batch_number}</p>
-                          )}
+
+      <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="production">Production</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Inventory Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isLoadingInventory ? "Loading..." : inventoryStats?.totalItems || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Across all categories
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Inventory Value
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isLoadingInventory 
+                    ? "Loading..." 
+                    : `Rs. ${(inventoryStats?.totalValue || 0).toLocaleString(undefined, { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                      })}`
+                  }
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Sum of all inventory items
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Items Below Reorder Point
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isLoadingInventory 
+                    ? "Loading..." 
+                    : (inventoryStats?.rawMaterialsBelowReorder || 0) + 
+                      (inventoryStats?.packagingItemsBelowReorder || 0)
+                  }
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Requires attention
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Finished Products
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isLoadingInventory ? "Loading..." : inventoryStats?.finishedProductsCount || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Available for sale
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Recent Production Batches</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {!recentBatches ? (
+                    <div>Loading...</div>
+                  ) : recentBatches.length === 0 ? (
+                    <div>No recent batches</div>
+                  ) : (
+                    recentBatches.map((batch: any) => (
+                      <div key={batch.id} className="flex items-center">
+                        <div className={`mr-2 h-2 w-2 rounded-full ${
+                          batch.status === 'completed' 
+                            ? 'bg-green-500' 
+                            : batch.status === 'cancelled' 
+                              ? 'bg-red-500' 
+                              : 'bg-yellow-500'
+                        }`} />
+                        <div className="flex-1 space-y-1">
+                          <div className="font-medium">{batch.batch_number || 'No batch number'}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {batch.product_name || 'Unknown'} ({batch.product_sku || 'Unknown'})
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {format(parseISO(activity.date), "PPP")}
-                        </p>
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(batch.created_at).toLocaleDateString()}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        {activity.type === "purchase" && (
-                          <p className="font-medium">{formatCurrency(activity.total_cost)}</p>
-                        )}
-                        {activity.type === "production" && (
-                          <Badge variant={activity.status === "completed" ? "outline" : "secondary"}>
-                            {activity.status}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    ))
+                  )}
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full" onClick={() => window.location.href = "/production-history"}>
+                  View All Batches
+                </Button>
+              </CardFooter>
+            </Card>
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Inventory Composition</CardTitle>
+                <CardDescription>
+                  Value distribution across inventory categories
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingInventory ? (
+                  <div>Loading chart data...</div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-10 text-center">
-                    <ArrowUpRight className="h-10 w-10 text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">No recent activity</p>
-                  </div>
+                  <ChartContainer 
+                    className="h-80"
+                    config={{
+                      raw: { theme: { light: "#4361ee", dark: "#3366ff" } },
+                      packaging: { theme: { light: "#7209b7", dark: "#8b5cf6" } },
+                      finished: { theme: { light: "#f72585", dark: "#ec4899" } },
+                    }}
+                  >
+                    <BarChart
+                      data={[
+                        {
+                          name: "Raw Materials",
+                          value: inventoryStats?.inventoryComposition?.[0]?.value || 0,
+                          fill: "var(--color-raw)",
+                        },
+                        {
+                          name: "Packaging",
+                          value: inventoryStats?.inventoryComposition?.[1]?.value || 0,
+                          fill: "var(--color-packaging)",
+                        },
+                        {
+                          name: "Finished",
+                          value: inventoryStats?.inventoryComposition?.[2]?.value || 0,
+                          fill: "var(--color-finished)",
+                        },
+                      ]}
+                      margin={{
+                        top: 10,
+                        right: 10,
+                        left: 10,
+                        bottom: 20,
+                      }}
+                    >
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent indicator="line" />
+                        }
+                      />
+                    </BarChart>
+                  </ChartContainer>
                 )}
-              </TabsContent>
-              <TabsContent value="purchases" className="space-y-4">
-                {purchases && purchases.length > 0 ? purchases.map((purchase) => (
-                  <div key={purchase.id} className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <p className="font-medium">{purchase.supplier}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(parseISO(purchase.date), "PPP")}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">{formatCurrency(purchase.total_cost)}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {purchase.quantity} units @ {formatCurrency(purchase.unit_cost)}
-                      </p>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="flex flex-col items-center justify-center py-10 text-center">
-                    <ShoppingCart className="h-10 w-10 text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">No recent purchases</p>
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="production" className="space-y-4">
-                {productions && productions.length > 0 ? productions.map((production) => (
-                  <div key={production.id} className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <p className="font-medium">Batch {production.batch_number}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(parseISO(production.production_date), "PPP")}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={production.status === "completed" ? "outline" : "secondary"}>
-                        {production.status}
-                      </Badge>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="flex flex-col items-center justify-center py-10 text-center">
-                    <Package className="h-10 w-10 text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">No recent production</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

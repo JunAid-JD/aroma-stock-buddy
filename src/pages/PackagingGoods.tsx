@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
@@ -54,6 +54,28 @@ const PackagingGoods = () => {
       }));
     },
   });
+
+  // Listen for realtime updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'packaging_items'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
+        }
+      )
+      .subscribe();   
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const handleSubmit = async (formData: any) => {
     try {

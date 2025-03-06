@@ -1,18 +1,18 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import BatchForm from "@/components/production/BatchForm";
+import BatchForm, { BatchItem } from "@/components/production/BatchForm";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 
 const columns = [
   { key: "batch_number", label: "Batch #" },
-  { key: "items_summary", label: "Products" },
+  { key: "items_summary", label: "Items" },
   { key: "production_date", label: "Date", isDate: true },
   { key: "status", label: "Status" },
   { key: "notes", label: "Notes" },
@@ -21,6 +21,7 @@ const columns = [
 const ProductionHistory = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -34,6 +35,7 @@ const ProductionHistory = () => {
           *,
           production_batch_items (
             quantity,
+            item_type,
             item_id
           )
         `)
@@ -41,162 +43,284 @@ const ProductionHistory = () => {
 
       if (error) throw error;
 
-      // Fetch product details for each batch item
-      const batchesWithItems = await Promise.all((batches || []).map(async batch => {
-        // Extract product IDs
-        const productIds = batch.production_batch_items.map((item: any) => item.item_id);
-        
-        // Fetch product details
-        const { data: products, error: productsError } = await supabase
-          .from("finished_products")
-          .select("id, name, sku")
-          .in("id", productIds);
-        
-        if (productsError) {
-          console.error("Error fetching products:", productsError);
+      if (!batches || batches.length === 0) {
+        return [];
+      }
+
+      // We need to fetch the names of the items
+      const batchesWithNames = await Promise.all(batches.map(async (batch) => {
+        // Handle case where production_batch_items is null
+        if (!batch.production_batch_items || batch.production_batch_items.length === 0) {
           return {
             ...batch,
-            items_summary: "Error loading items"
+            items_summary: "No items"
           };
         }
-        
-        // Create a lookup map for products
-        const productMap = new Map();
-        (products || []).forEach(product => {
-          productMap.set(product.id, product);
-        });
-        
-        // Create items summary
-        const items_summary = batch.production_batch_items
-          .map((item: any) => {
-            const product = productMap.get(item.item_id);
-            return product ? `${product.name || product.sku} (${item.quantity})` : `Unknown product (${item.quantity})`;
-          })
-          .join(", ") || "No items";
+
+        const itemsWithNames = await Promise.all(batch.production_batch_items.map(async (item) => {
+          let name = "Unknown";
+          
+          if (item.item_type === 'finished_product') {
+            const { data } = await supabase
+              .from("finished_products")
+              .select("name, sku")
+              .eq("id", item.item_id)
+              .maybeSingle();
+            name = data ? `${data.name} (${data.sku})` : "Unknown Product";
+          }
+          
+          return `${name} (${item.quantity})`;
+        }));
         
         return {
           ...batch,
-          items_summary
+          items_summary: itemsWithNames.join(", ") || "No items"
         };
       }));
-
-      return batchesWithItems;
+      
+      return batchesWithNames;
     },
   });
 
-  const { data: availableProducts } = useQuery({
-    queryKey: ["availableProducts"],
+  // Listen for realtime updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'production_batches'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'production_batch_items'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
+        }
+      )
+      .subscribe();   
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  // Query for finished products that exist in the SKU dependency mapping
+  const { data: finishedProducts } = useQuery({
+    queryKey: ["skuDependencyFinishedProducts"],
     queryFn: async () => {
-      // First get regular finished products
-      const { data: finishedProducts, error: fpError } = await supabase
-        .from("finished_products")
-        .select("id, name, sku");
-      
-      if (fpError) throw fpError;
-      
-      // Get products that have dependencies but might not be in the finished_products table
-      const { data: dependencies, error: depError } = await supabase
+      // First get all unique finished product IDs from sku_dependencies
+      const { data: dependencies, error: depsError } = await supabase
         .from("sku_dependencies")
-        .select(`
-          finished_product_id,
-          finished_products!finished_product_id(id, name, sku)
-        `)
-        .order("finished_product_id");
+        .select("finished_product_id")
+        .order("created_at", { ascending: false });
       
-      if (depError) throw depError;
+      if (depsError) throw depsError;
       
-      // Create a set of all product IDs from the finished_products table
-      const existingProductIds = new Set(finishedProducts.map(p => p.id));
+      if (!dependencies || dependencies.length === 0) {
+        // Fallback to all finished products if no dependencies exist
+        const { data: allProducts, error } = await supabase
+          .from("finished_products")
+          .select("id, name, sku");
+        
+        if (error) throw error;
+        return allProducts || [];
+      }
       
-      // Filter and map products from dependencies that don't exist in finished_products
-      const dependencyOnlyProducts = dependencies
-        .filter(d => d.finished_products && !existingProductIds.has(d.finished_product_id))
-        .map(d => ({
-          id: d.finished_product_id,
-          name: d.finished_products.name || d.finished_products.sku,
-          sku: d.finished_products.sku
-        }));
+      // Get unique finished product IDs
+      const uniqueFpIds = [...new Set(dependencies.map(d => d.finished_product_id))];
       
-      // Combine both lists and remove duplicates
-      const allProducts = [
-        ...finishedProducts,
-        ...dependencyOnlyProducts
-      ];
+      // Get product details for these IDs
+      const { data: products, error: productsError } = await supabase
+        .from("finished_products")
+        .select("id, name, sku")
+        .in("id", uniqueFpIds);
       
-      // Remove duplicates based on ID
-      const uniqueProducts = Array.from(
-        new Map(allProducts.map(item => [item.id, item])).values()
-      );
-      
-      return uniqueProducts;
+      if (productsError) throw productsError;
+      return products || [];
     },
   });
 
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const customBatchId = formData.get("batch_id") as string;
+    const data = {
+      status: formData.get("status") as string,
+      notes: formData.get("notes") as string,
+      production_date: new Date().toISOString(),
+      // Get the first finished product as product_id for backward compatibility
+      product_id: getFirstFinishedProductId(),
+      batch_number: customBatchId && customBatchId.trim() !== "" ? customBatchId : undefined
+    };
+
     try {
-      // Create new batch
-      const { data: newBatch, error: batchError } = await supabase
-        .from("production_batches")
-        .insert({
-          batch_number: data.batch_number,
-          product_id: data.finished_product_id,
-          production_date: new Date().toISOString(),
-          status: "completed",
-          notes: ""
-        })
-        .select()
-        .single();
+      // Validate that all batch items have valid IDs
+      const invalidItems = batchItems.filter(item => !item.item_id);
+      if (invalidItems.length > 0) {
+        throw new Error("All batch items must have a selected product");
+      }
 
-      if (batchError) throw batchError;
+      if (!data.product_id) {
+        throw new Error("No valid product ID found for the batch");
+      }
 
-      // Insert batch items
-      const batchItem = {
-        batch_id: newBatch.id,
-        item_id: data.finished_product_id,
-        quantity: data.quantity_produced,
-        item_type: 'finished_product' as const
-      };
+      if (selectedBatch) {
+        // Update existing batch
+        const { error: batchError } = await supabase
+          .from("production_batches")
+          .update({
+            ...data,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", selectedBatch.id);
+        
+        if (batchError) throw batchError;
 
-      const { error: itemsError } = await supabase
-        .from("production_batch_items")
-        .insert(batchItem);
+        // Delete existing items
+        const { error: deleteError } = await supabase
+          .from("production_batch_items")
+          .delete()
+          .eq("batch_id", selectedBatch.id);
 
-      if (itemsError) throw itemsError;
+        if (deleteError) throw deleteError;
+
+        // Insert new items
+        const { error: itemsError } = await supabase
+          .from("production_batch_items")
+          .insert(
+            batchItems.map(item => ({
+              batch_id: selectedBatch.id,
+              item_id: item.item_id,
+              item_type: item.item_type,
+              quantity: item.quantity,
+            }))
+          );
+
+        if (itemsError) throw itemsError;
+
+      } else {
+        // Create new batch
+        const { data: newBatch, error: batchError } = await supabase
+          .from("production_batches")
+          .insert(data)
+          .select()
+          .single();
+
+        if (batchError) throw batchError;
+
+        // Insert batch items
+        const { error: itemsError } = await supabase
+          .from("production_batch_items")
+          .insert(
+            batchItems.map(item => ({
+              batch_id: newBatch.id,
+              item_id: item.item_id,
+              item_type: item.item_type,
+              quantity: item.quantity,
+            }))
+          );
+
+        if (itemsError) throw itemsError;
+      }
 
       await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
       await queryClient.invalidateQueries({ queryKey: ["finishedProducts"] });
       await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
       await queryClient.invalidateQueries({ queryKey: ["packagingItems"] });
-      await queryClient.invalidateQueries({ queryKey: ["inventorySummary"] });
       
       toast({
         title: "Success",
-        description: `Batch added successfully.`,
+        description: `Batch ${selectedBatch ? "updated" : "added"} successfully.`,
       });
       handleClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
     }
   };
 
+  // Helper function to get the first finished product ID from the batch items
+  const getFirstFinishedProductId = () => {
+    const finishedProductItem = batchItems.find(item => item.item_type === "finished_product");
+    if (finishedProductItem && finishedProductItem.item_id) {
+      return finishedProductItem.item_id;
+    }
+    
+    if (finishedProducts && finishedProducts.length > 0) {
+      return finishedProducts[0].id;
+    }
+    
+    return null;
+  };
+
   const handleClose = () => {
     setIsDialogOpen(false);
     setSelectedBatch(null);
+    setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
   };
 
   const handleAdd = () => {
     setSelectedBatch(null);
+    setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (batch: any) => {
     setSelectedBatch(batch);
-    setIsDialogOpen(true);
+    
+    // Extract batch items - we need to get their details from the production_batch_items
+    supabase
+      .from("production_batch_items")
+      .select("*")
+      .eq("batch_id", batch.id)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching batch items:", error);
+          setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
+        } else if (data && data.length > 0) {
+          const batchItems = data.map(item => ({
+            item_id: item.item_id,
+            item_type: "finished_product" as "finished_product",
+            quantity: item.quantity,
+          }));
+          setBatchItems(batchItems);
+        } else {
+          setBatchItems([{ item_id: "", item_type: "finished_product", quantity: 1 }]);
+        }
+        
+        setIsDialogOpen(true);
+      });
+  };
+
+  const addBatchItem = () => {
+    setBatchItems([...batchItems, { item_id: "", item_type: "finished_product", quantity: 1 }]);
+  };
+
+  const removeBatchItem = (index: number) => {
+    if (batchItems.length > 1) {
+      setBatchItems(batchItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateBatchItem = (index: number, field: keyof BatchItem, value: any) => {
+    const newItems = [...batchItems];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setBatchItems(newItems);
   };
 
   const handleDelete = async () => {
@@ -220,8 +344,6 @@ const ProductionHistory = () => {
       if (batchError) throw batchError;
 
       await queryClient.invalidateQueries({ queryKey: ["productionBatches"] });
-      await queryClient.invalidateQueries({ queryKey: ["inventorySummary"] });
-      
       toast({
         title: "Success",
         description: "Production batch deleted successfully.",
@@ -265,15 +387,24 @@ const ProductionHistory = () => {
       />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Add Production Batch
+              {selectedBatch ? "Edit" : "Add"} Production Batch
             </DialogTitle>
+            <DialogDescription>
+              Create a production batch with finished products that will use raw materials and packaging according to SKU dependencies.
+            </DialogDescription>
           </DialogHeader>
           <BatchForm
+            selectedBatch={selectedBatch}
+            batchItems={batchItems}
+            finishedProducts={finishedProducts || []}
             onSubmit={handleSubmit}
             onClose={handleClose}
+            onAddItem={addBatchItem}
+            onRemoveItem={removeBatchItem}
+            onUpdateItem={updateBatchItem}
           />
         </DialogContent>
       </Dialog>
