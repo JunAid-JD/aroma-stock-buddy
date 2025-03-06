@@ -5,18 +5,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 type MaterialType = 'raw' | 'packaging';
+
+interface ComponentItem {
+  id: string;
+  material_id: string;
+  quantity: number;
+}
 
 interface DependencyFormProps {
   onSubmit: (formData: any) => void;
   onCancel: () => void;
   isSubmitting?: boolean;
   initialData?: {
-    material_type?: MaterialType;
-    material_id?: string;
-    quantity_required?: number;
+    finished_product_sku?: string;
+    raw_materials?: ComponentItem[];
+    packaging_items?: ComponentItem[];
   };
   isEditing?: boolean;
   rawMaterialsList: any[];
@@ -32,90 +38,199 @@ const DependencyForm = ({
   rawMaterialsList,
   packagingItemsList
 }: DependencyFormProps) => {
-  const [materialType, setMaterialType] = useState<MaterialType>(initialData?.material_type || 'raw');
-  const [materialId, setMaterialId] = useState<string>(initialData?.material_id || '');
-  const [quantityRequired, setQuantityRequired] = useState<number>(initialData?.quantity_required || 1);
+  const [productSku, setProductSku] = useState(initialData?.finished_product_sku || '');
+  const [rawMaterials, setRawMaterials] = useState<ComponentItem[]>(
+    initialData?.raw_materials || []
+  );
+  const [packagingItems, setPackagingItems] = useState<ComponentItem[]>(
+    initialData?.packaging_items || []
+  );
 
   useEffect(() => {
     if (initialData) {
-      setMaterialType(initialData.material_type || 'raw');
-      setMaterialId(initialData.material_id || '');
-      setQuantityRequired(initialData.quantity_required || 1);
+      setProductSku(initialData.finished_product_sku || '');
+      setRawMaterials(initialData.raw_materials || []);
+      setPackagingItems(initialData.packaging_items || []);
     }
   }, [initialData]);
+
+  const addRawMaterial = () => {
+    setRawMaterials([
+      ...rawMaterials,
+      { id: crypto.randomUUID(), material_id: '', quantity: 1 }
+    ]);
+  };
+
+  const addPackagingItem = () => {
+    setPackagingItems([
+      ...packagingItems,
+      { id: crypto.randomUUID(), material_id: '', quantity: 1 }
+    ]);
+  };
+
+  const handleRawMaterialChange = (itemId: string, materialId: string) => {
+    setRawMaterials(rawMaterials.map(item => 
+      item.id === itemId ? { ...item, material_id: materialId } : item
+    ));
+  };
+
+  const handleRawMaterialQuantityChange = (itemId: string, quantity: number) => {
+    setRawMaterials(rawMaterials.map(item => 
+      item.id === itemId ? { ...item, quantity } : item
+    ));
+  };
+
+  const handlePackagingChange = (itemId: string, materialId: string) => {
+    setPackagingItems(packagingItems.map(item => 
+      item.id === itemId ? { ...item, material_id: materialId } : item
+    ));
+  };
+
+  const handlePackagingQuantityChange = (itemId: string, quantity: number) => {
+    setPackagingItems(packagingItems.map(item => 
+      item.id === itemId ? { ...item, quantity } : item
+    ));
+  };
+
+  const removeRawMaterial = (itemId: string) => {
+    setRawMaterials(rawMaterials.filter(item => item.id !== itemId));
+  };
+
+  const removePackagingItem = (itemId: string) => {
+    setPackagingItems(packagingItems.filter(item => item.id !== itemId));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    const validRawMaterials = rawMaterials.filter(item => item.material_id);
+    const validPackagingItems = packagingItems.filter(item => item.material_id);
+    
     onSubmit({
-      material_type: materialType,
-      material_id: materialId,
-      quantity_required: quantityRequired
+      finished_product_sku: productSku,
+      raw_materials: validRawMaterials,
+      packaging_items: validPackagingItems
     });
   };
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div>
-          <Label htmlFor="material_type">Component Type</Label>
-          <Select
-            value={materialType}
-            onValueChange={(value: MaterialType) => {
-              setMaterialType(value);
-              setMaterialId(''); // Reset material ID when type changes
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select component type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="raw">Raw Material</SelectItem>
-              <SelectItem value="packaging">Packaging Item</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="material_id">
-            {materialType === 'raw' ? 'Raw Material' : 'Packaging Item'}
-          </Label>
-          <Select
-            value={materialId}
-            onValueChange={setMaterialId}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={`Select ${materialType === 'raw' ? 'raw material' : 'packaging item'}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {materialType === 'raw' ? (
-                rawMaterialsList.map((material) => (
-                  <SelectItem key={material.id} value={material.id}>
-                    {material.name} ({material.sku})
-                  </SelectItem>
-                ))
-              ) : (
-                packagingItemsList.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name} ({item.sku || 'No SKU'})
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="quantity_required">Quantity Required</Label>
+          <Label htmlFor="product_sku">Finished Product SKU</Label>
           <Input
-            id="quantity_required"
-            type="number"
-            value={quantityRequired}
-            onChange={(e) => setQuantityRequired(parseFloat(e.target.value) || 0)}
-            min={0.1}
-            step={0.1}
+            id="product_sku"
+            value={productSku}
+            onChange={(e) => setProductSku(e.target.value)}
+            placeholder="Enter product SKU"
             required
           />
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <Label>Raw Materials</Label>
+          </div>
+          
+          {rawMaterials.map((item) => (
+            <div key={item.id} className="flex items-center gap-2 mb-2">
+              <Select 
+                value={item.material_id} 
+                onValueChange={(value) => handleRawMaterialChange(item.id, value)}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select raw material" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rawMaterialsList.map((material) => (
+                    <SelectItem key={material.id} value={material.id}>
+                      {material.name} ({material.sku})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Input
+                type="number"
+                min={0.1}
+                step={0.1}
+                className="w-24"
+                value={item.quantity}
+                onChange={(e) => handleRawMaterialQuantityChange(item.id, parseFloat(e.target.value) || 1)}
+              />
+              
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removeRawMaterial(item.id)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full mt-2"
+            onClick={addRawMaterial}
+          >
+            Add Raw Material
+          </Button>
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <Label>Packaging Items</Label>
+          </div>
+          
+          {packagingItems.map((item) => (
+            <div key={item.id} className="flex items-center gap-2 mb-2">
+              <Select 
+                value={item.material_id} 
+                onValueChange={(value) => handlePackagingChange(item.id, value)}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select packaging item" />
+                </SelectTrigger>
+                <SelectContent>
+                  {packagingItemsList.map((material) => (
+                    <SelectItem key={material.id} value={material.id}>
+                      {material.name} ({material.sku || 'No SKU'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                className="w-24"
+                value={item.quantity}
+                onChange={(e) => handlePackagingQuantityChange(item.id, parseInt(e.target.value) || 1)}
+              />
+              
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removePackagingItem(item.id)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full mt-2"
+            onClick={addPackagingItem}
+          >
+            Add Packaging Item
+          </Button>
         </div>
       </div>
 
@@ -128,14 +243,14 @@ const DependencyForm = ({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting || !materialId}>
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {isEditing ? 'Updating...' : 'Adding...'}
+              {isEditing ? 'Updating...' : 'Creating...'}
             </>
           ) : (
-            isEditing ? 'Update' : 'Add'
+            isEditing ? 'Update' : 'Create'
           )}
         </Button>
       </DialogFooter>

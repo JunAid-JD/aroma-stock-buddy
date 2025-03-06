@@ -7,7 +7,7 @@ import {
   Home,
   FileBarChart,
   AlertTriangle,
-  Link,
+  Link2,
   LogOut,
 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
@@ -51,7 +51,7 @@ export const menuItems = [
   },
   {
     title: "SKU Dependency Mapping",
-    icon: Link,
+    icon: Link2,
     link: "/sku-dependency-mapping",
   },
 ];
