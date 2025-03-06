@@ -52,6 +52,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     if (selectedDependency) {
       // Set finished product ID
       setFinishedProductId(selectedDependency.finished_product_id);
+      setSkuInput(selectedDependency.product_sku);
 
       // For editing single dependencies
       if (selectedDependency.component_type === "raw_material") {
@@ -88,7 +89,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
       return;
     }
 
-    // We need a SKU to create a finished product
+    // We need a SKU to create a dependency
     if (!skuInput) {
       toast({
         title: "Error",
@@ -118,10 +119,8 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
     setIsLoading(true);
 
     try {
-      let productId = existingProduct?.id;
-      
-      // If product doesn't exist, create it
-      if (!productId) {
+      // If the product doesn't exist, create it first
+      if (!existingProduct) {
         // Extract name from SKU for better display
         const nameFromSku = skuInput.split('-')[0] || skuInput;
         
@@ -134,7 +133,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
             quantity_in_stock: 0,
             unit_price: 0
           })
-          .select("id")
+          .select("id, sku")
           .single();
         
         if (createError) {
@@ -142,14 +141,12 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
           throw createError;
         }
         
-        productId = newProduct.id;
+        console.log("Created new product:", newProduct);
       }
       
-      console.log("Submitting with product ID:", productId);
-
-      // Now handle dependencies with the valid product ID
+      // Now send the dependencies with the product SKU directly
       onSubmit({
-        finished_product_id: productId,
+        product_sku: skuInput,
         raw_materials: rawMaterialItems.filter(item => item.raw_material_id),
         packaging_items: packagingItemsList.filter(item => item.packaging_item_id),
       });
@@ -184,7 +181,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         setFinishedProductId(data.id);
         toast({
           title: "Product found",
-          description: `Found existing product: ${data.name} (ID: ${data.id})`,
+          description: `Found existing product: ${data.name} (SKU: ${data.sku})`,
         });
       } else {
         setFinishedProductId("");
@@ -275,7 +272,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
         {selectedDependency ? (
           <div>
             <p className="text-sm font-medium mb-2">
-              Finished Product: {selectedDependency.finished_product_name}
+              Finished Product: {selectedDependency.finished_product_name || selectedDependency.product_sku}
             </p>
             <p className="text-sm text-muted-foreground mb-4">
               Component: {selectedDependency.component_name} ({selectedDependency.component_type})
@@ -304,7 +301,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
               </div>
               {existingProduct && (
                 <p className="text-sm text-green-600">
-                  Found: {existingProduct.name} (Stock: {existingProduct.quantity_in_stock}, ID: {existingProduct.id})
+                  Found: {existingProduct.name} (Stock: {existingProduct.quantity_in_stock}, SKU: {existingProduct.sku})
                 </p>
               )}
             </div>

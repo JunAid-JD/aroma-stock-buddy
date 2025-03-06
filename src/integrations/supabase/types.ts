@@ -401,6 +401,7 @@ export type Database = {
           component_type: Database["public"]["Enums"]["product_category"]
           created_at: string | null
           finished_product_id: string | null
+          finished_product_sku: string | null
           id: string
           item_type: Database["public"]["Enums"]["product_category"]
           packaging_item_id: string | null
@@ -412,6 +413,7 @@ export type Database = {
           component_type?: Database["public"]["Enums"]["product_category"]
           created_at?: string | null
           finished_product_id?: string | null
+          finished_product_sku?: string | null
           id?: string
           item_type: Database["public"]["Enums"]["product_category"]
           packaging_item_id?: string | null
@@ -423,6 +425,7 @@ export type Database = {
           component_type?: Database["public"]["Enums"]["product_category"]
           created_at?: string | null
           finished_product_id?: string | null
+          finished_product_sku?: string | null
           id?: string
           item_type?: Database["public"]["Enums"]["product_category"]
           packaging_item_id?: string | null

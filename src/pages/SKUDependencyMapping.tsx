@@ -38,6 +38,7 @@ const SKUDependencyMapping = () => {
           quantity_required,
           created_at,
           updated_at,
+          finished_product_sku,
           finished_products:finished_product_id(id, name, sku),
           raw_materials:raw_material_id(id, name, sku),
           packaging_items:packaging_item_id(id, name, type, size)
@@ -53,11 +54,7 @@ const SKUDependencyMapping = () => {
         const packaging_item = dependency.packaging_items;
 
         let component_name = "";
-        let product_sku = "";
-
-        if (finished_product) {
-          product_sku = finished_product.sku;
-        }
+        let product_sku = dependency.finished_product_sku || (finished_product ? finished_product.sku : "");
 
         if (dependency.component_type === "raw_material" && raw_material) {
           component_name = `${raw_material.name} (${dependency.quantity_required} ${raw_material.sku})`;
@@ -189,11 +186,11 @@ const SKUDependencyMapping = () => {
           description: "SKU dependency has been updated successfully",
         });
       } else {
-        // We now have a valid UUID for the finished product
-        const productId = formData.finished_product_id;
+        // We're using the SKU directly now
+        const productSku = formData.product_sku;
         
-        if (!productId) {
-          throw new Error("No finished product ID provided");
+        if (!productSku) {
+          throw new Error("No product SKU provided");
         }
 
         // Insert raw material dependencies if any
@@ -201,7 +198,7 @@ const SKUDependencyMapping = () => {
           const rawMaterialInserts = formData.raw_materials
             .filter((item: any) => item.raw_material_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id: productId,
+              finished_product_sku: productSku,
               raw_material_id: item.raw_material_id,
               component_type: "raw_material",
               item_type: "raw_material",
@@ -227,7 +224,7 @@ const SKUDependencyMapping = () => {
           const packagingInserts = formData.packaging_items
             .filter((item: any) => item.packaging_item_id && item.quantity_required > 0)
             .map((item: any) => ({
-              finished_product_id: productId,
+              finished_product_sku: productSku,
               packaging_item_id: item.packaging_item_id,
               component_type: "packaging",
               item_type: "packaging",
@@ -347,7 +344,7 @@ const SKUDependencyMapping = () => {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </Dialog>
+      </AlertDialog>
     </div>
   );
 };
