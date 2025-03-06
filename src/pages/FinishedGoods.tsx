@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,29 +48,18 @@ const FinishedGoods = () => {
 
   const checkDependency = async (sku: string) => {
     try {
-      // First, get the product by SKU
-      const { data: product, error } = await supabase
-        .from("finished_products")
+      // Check if there are dependencies for this SKU directly
+      const { data: dependencies, error: depError } = await supabase
+        .from("sku_dependencies")
         .select("id")
-        .eq("sku", sku)
-        .maybeSingle();
+        .eq("finished_product_sku", sku)
+        .limit(1);
       
-      if (error) throw error;
-
-      if (product) {
-        // Check if there are dependencies for this product
-        const { data: dependencies, error: depError } = await supabase
-          .from("sku_dependencies")
-          .select("id")
-          .eq("finished_product_id", product.id)
-          .limit(1);
-        
-        if (depError) throw depError;
-        
-        if (dependencies && dependencies.length > 0) {
-          setHasDependency(true);
-          return true;
-        }
+      if (depError) throw depError;
+      
+      if (dependencies && dependencies.length > 0) {
+        setHasDependency(true);
+        return true;
       }
       
       setHasDependency(false);

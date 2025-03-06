@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,8 +49,7 @@ const SKUDependencyForm: React.FC<SKUDependencyFormProps> = ({
 
   useEffect(() => {
     if (selectedDependency) {
-      // Set finished product ID
-      setFinishedProductId(selectedDependency.finished_product_id);
+      // Set finished product info
       setSkuInput(selectedDependency.product_sku);
 
       // For editing single dependencies

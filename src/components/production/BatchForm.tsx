@@ -62,10 +62,21 @@ const BatchForm = ({ onSubmit, onClose }: BatchFormProps) => {
   // Function to check if a finished product has dependencies
   const checkDependencies = async (productId: string) => {
     try {
+      // First, get the product's SKU
+      const { data: productData, error: productError } = await supabase
+        .from("finished_products")
+        .select("sku")
+        .eq("id", productId)
+        .single();
+      
+      if (productError) throw productError;
+      
+      // Check for dependencies using the SKU instead of ID
       const { data, error } = await supabase
         .from("sku_dependencies")
         .select("*")
-        .eq("finished_product_id", productId);
+        .eq("finished_product_sku", productData.sku)
+        .limit(1);
 
       if (error) throw error;
 
