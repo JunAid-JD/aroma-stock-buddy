@@ -2,12 +2,21 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, LineChart } from "@/components/ui/chart";
 import { TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { 
+  Bar, 
+  BarChart as RechartsBarChart, 
+  Line, 
+  LineChart as RechartsLineChart, 
+  ResponsiveContainer, 
+  Tooltip, 
+  XAxis, 
+  YAxis 
+} from "recharts";
 
 const fetchInventoryStats = async () => {
   const [rawMaterials, packagingItems, finishedProducts] = await Promise.all([
@@ -59,6 +68,74 @@ const fetchRecentPurchases = async () => {
 
   if (error) throw error;
   return data || [];
+};
+
+// Custom chart components to replace the imported ones
+const BarChart = ({ 
+  data, 
+  index, 
+  categories, 
+  colors, 
+  valueFormatter, 
+  className 
+}: { 
+  data: any[]; 
+  index: string; 
+  categories: string[]; 
+  colors: string[]; 
+  valueFormatter: (value: number) => string; 
+  className?: string; 
+}) => {
+  return (
+    <ResponsiveContainer width="100%" height={200} className={className}>
+      <RechartsBarChart data={data}>
+        <XAxis dataKey={index} />
+        <YAxis />
+        <Tooltip formatter={(value: any) => valueFormatter(value)} />
+        {categories.map((category, i) => (
+          <Bar 
+            key={category} 
+            dataKey={category} 
+            fill={colors[i] || '#3b82f6'} 
+          />
+        ))}
+      </RechartsBarChart>
+    </ResponsiveContainer>
+  );
+};
+
+const LineChart = ({ 
+  data, 
+  index, 
+  categories, 
+  colors, 
+  valueFormatter, 
+  className 
+}: { 
+  data: any[]; 
+  index: string; 
+  categories: string[]; 
+  colors: string[]; 
+  valueFormatter: (value: number) => string; 
+  className?: string; 
+}) => {
+  return (
+    <ResponsiveContainer width="100%" height={200} className={className}>
+      <RechartsLineChart data={data}>
+        <XAxis dataKey={index} />
+        <YAxis />
+        <Tooltip formatter={(value: any) => valueFormatter(value)} />
+        {categories.map((category, i) => (
+          <Line 
+            key={category} 
+            type="monotone" 
+            dataKey={category} 
+            stroke={colors[i] || '#10b981'} 
+          />
+        ))}
+      </RechartsLineChart>
+    </ResponsiveContainer>
+  );
 };
 
 const Dashboard = () => {
@@ -212,16 +289,16 @@ const Dashboard = () => {
                 </TableHeader>
                 <TableBody>
                   {recentProduction && recentProduction.length > 0 ? (
-                    recentProduction.map((batch) => (
+                    recentProduction.map((batch: any) => (
                       <TableRow key={batch.id}>
                         <TableCell>{batch.batch_number}</TableCell>
-                        <TableCell>{batch.finished_products?.name}</TableCell>
+                        <TableCell>{batch.finished_products?.name || 'Unknown'}</TableCell>
                         <TableCell>
                           <Badge variant={
                             batch.status === 'completed' 
-                              ? 'success' 
+                              ? 'default' 
                               : batch.status === 'in_progress' 
-                                ? 'default' 
+                                ? 'secondary' 
                                 : 'outline'
                           }>
                             {batch.status}
