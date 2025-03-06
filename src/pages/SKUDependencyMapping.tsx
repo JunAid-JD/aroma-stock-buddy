@@ -21,6 +21,7 @@ interface SKUDependency {
   quantity_required: number;
   created_at: string;
   updated_at: string;
+  finished_product_sku?: string;
   finished_products?: {
     id: string;
     name: string;
@@ -60,6 +61,7 @@ const fetchDependencies = async (searchQuery: string = '') => {
       finished_product_id,
       raw_material_id,
       packaging_item_id,
+      finished_product_sku,
       finished_products:finished_product_id (id, name, sku),
       raw_materials (id, name, sku, unit),
       packaging_items:packaging_item_id (id, name, sku)
@@ -77,7 +79,7 @@ const fetchDependencies = async (searchQuery: string = '') => {
   const { data, error } = await query.order('created_at', { ascending: false });
   
   if (error) throw error;
-  return data || [];
+  return data as SKUDependency[];
 };
 
 // Fetch all finished products
@@ -379,17 +381,23 @@ const SKUDependencyMapping = () => {
 
   // Handle form submission
   const handleSubmit = async () => {
+    console.log("Submitting form with SKU:", finishedProductSku);
+    console.log("Available products:", finishedProducts);
+    
     // Find product by SKU
     const product = finishedProducts?.find(p => p.sku === finishedProductSku);
     
     if (!product) {
+      console.error("Product not found with SKU:", finishedProductSku);
       toast({
         title: "Error",
-        description: "Invalid product SKU",
+        description: "Invalid product SKU. Please enter a valid SKU.",
         variant: "destructive",
       });
       return;
     }
+
+    console.log("Found product:", product);
 
     // Validate items
     const validRawMaterials = rawMaterialItems.filter(item => item.material_id);
@@ -552,6 +560,11 @@ const SKUDependencyMapping = () => {
                 value={finishedProductSku}
                 onChange={(e) => setFinishedProductSku(e.target.value)}
               />
+              {finishedProducts && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  Available SKUs: {finishedProducts.map(p => p.sku).join(', ')}
+                </div>
+              )}
             </div>
 
             {/* Raw Materials */}
