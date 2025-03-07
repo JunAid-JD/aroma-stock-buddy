@@ -1,8 +1,7 @@
-
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -70,7 +69,6 @@ const fetchRecentPurchases = async () => {
   return data || [];
 };
 
-// Custom chart components to replace the imported ones
 const BarChart = ({ 
   data, 
   index, 
@@ -154,7 +152,6 @@ const Dashboard = () => {
     queryFn: fetchRecentPurchases,
   });
 
-  // Demo data for charts
   const inventoryData = [
     { name: 'Raw Materials', value: inventoryStats?.rawMaterialsCount || 0 },
     { name: 'Packaging', value: inventoryStats?.packagingItemsCount || 0 },
@@ -182,186 +179,188 @@ const Dashboard = () => {
   };
 
   return (
-    <TabsContent value="dashboard" className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Inventory Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statsLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {(inventoryStats?.rawMaterialsCount || 0) + 
-                   (inventoryStats?.packagingItemsCount || 0) + 
-                   (inventoryStats?.finishedProductsCount || 0)}
+    <Tabs defaultValue="dashboard">
+      <TabsContent value="dashboard" className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Inventory Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {statsLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {inventoryStats?.rawMaterialsCount} raw materials, {inventoryStats?.packagingItemsCount} packaging items, {inventoryStats?.finishedProductsCount} finished products
-                </p>
-              </>
-            )}
-          </CardContent>
-          <CardFooter className="p-2">
-            <BarChart 
-              data={inventoryData} 
-              index="name"
-              categories={['value']}
-              colors={['blue']}
-              valueFormatter={(value) => `${value} items`}
-              className="aspect-[4/3]" 
-            />
-          </CardFooter>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statsLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {(inventoryStats?.rawMaterialsLow || 0) + (inventoryStats?.packagingItemsLow || 0)}
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">
+                    {(inventoryStats?.rawMaterialsCount || 0) + 
+                     (inventoryStats?.packagingItemsCount || 0) + 
+                     (inventoryStats?.finishedProductsCount || 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {inventoryStats?.rawMaterialsCount} raw materials, {inventoryStats?.packagingItemsCount} packaging items, {inventoryStats?.finishedProductsCount} finished products
+                  </p>
+                </>
+              )}
+            </CardContent>
+            <CardFooter className="p-2">
+              <BarChart 
+                data={inventoryData} 
+                index="name"
+                categories={['value']}
+                colors={['blue']}
+                valueFormatter={(value) => `${value} items`}
+                className="aspect-[4/3]" 
+              />
+            </CardFooter>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {statsLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {inventoryStats?.rawMaterialsLow} raw materials and {inventoryStats?.packagingItemsLow} packaging items below reorder point
-                </p>
-              </>
-            )}
-          </CardContent>
-          <CardFooter className="p-2 flex justify-center">
-            <Badge variant={inventoryStats && (inventoryStats.rawMaterialsLow + inventoryStats.packagingItemsLow > 5) ? "destructive" : "outline"} className="px-3 py-1">
-              {inventoryStats && (inventoryStats.rawMaterialsLow + inventoryStats.packagingItemsLow > 5) ? "Action Required" : "Stock Levels OK"}
-            </Badge>
-          </CardFooter>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Production Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">Monthly</div>
-            <p className="text-xs text-muted-foreground">
-              Production batches per month
-            </p>
-          </CardContent>
-          <CardFooter className="p-2">
-            <LineChart 
-              data={productionData} 
-              index="name"
-              categories={['value']}
-              colors={['green']}
-              valueFormatter={(value) => `${value} batches`}
-              className="aspect-[4/3]" 
-            />
-          </CardFooter>
-        </Card>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Production</CardTitle>
-            <CardDescription>
-              Latest production batches processed
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {productionLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Batch</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentProduction && recentProduction.length > 0 ? (
-                    recentProduction.map((batch: any) => (
-                      <TableRow key={batch.id}>
-                        <TableCell>{batch.batch_number}</TableCell>
-                        <TableCell>{batch.finished_products?.name || 'Unknown'}</TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            batch.status === 'completed' 
-                              ? 'default' 
-                              : batch.status === 'in_progress' 
-                                ? 'secondary' 
-                                : 'outline'
-                          }>
-                            {batch.status}
-                          </Badge>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">
+                    {(inventoryStats?.rawMaterialsLow || 0) + (inventoryStats?.packagingItemsLow || 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {inventoryStats?.rawMaterialsLow} raw materials and {inventoryStats?.packagingItemsLow} packaging items below reorder point
+                  </p>
+                </>
+              )}
+            </CardContent>
+            <CardFooter className="p-2 flex justify-center">
+              <Badge variant={inventoryStats && (inventoryStats.rawMaterialsLow + inventoryStats.packagingItemsLow > 5) ? "destructive" : "outline"} className="px-3 py-1">
+                {inventoryStats && (inventoryStats.rawMaterialsLow + inventoryStats.packagingItemsLow > 5) ? "Action Required" : "Stock Levels OK"}
+              </Badge>
+            </CardFooter>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Production Trend</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">Monthly</div>
+              <p className="text-xs text-muted-foreground">
+                Production batches per month
+              </p>
+            </CardContent>
+            <CardFooter className="p-2">
+              <LineChart 
+                data={productionData} 
+                index="name"
+                categories={['value']}
+                colors={['green']}
+                valueFormatter={(value) => `${value} batches`}
+                className="aspect-[4/3]" 
+              />
+            </CardFooter>
+          </Card>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Production</CardTitle>
+              <CardDescription>
+                Latest production batches processed
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {productionLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Batch</TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentProduction && recentProduction.length > 0 ? (
+                      recentProduction.map((batch: any) => (
+                        <TableRow key={batch.id}>
+                          <TableCell>{batch.batch_number}</TableCell>
+                          <TableCell>{batch.finished_products?.name || 'Unknown'}</TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              batch.status === 'completed' 
+                                ? 'default' 
+                                : batch.status === 'in_progress' 
+                                  ? 'secondary' 
+                                  : 'outline'
+                            }>
+                              {batch.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          No recent production batches found
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Purchases</CardTitle>
+              <CardDescription>
+                Latest inventory items purchased
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {purchasesLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        No recent production batches found
-                      </TableCell>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Cost</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Purchases</CardTitle>
-            <CardDescription>
-              Latest inventory items purchased
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {purchasesLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Cost</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentPurchases && recentPurchases.length > 0 ? (
-                    recentPurchases.map((purchase) => (
-                      <TableRow key={purchase.id}>
-                        <TableCell>{getItemName(purchase)}</TableCell>
-                        <TableCell>{purchase.quantity}</TableCell>
-                        <TableCell>${purchase.total_cost.toFixed(2)}</TableCell>
+                  </TableHeader>
+                  <TableBody>
+                    {recentPurchases && recentPurchases.length > 0 ? (
+                      recentPurchases.map((purchase) => (
+                        <TableRow key={purchase.id}>
+                          <TableCell>{getItemName(purchase)}</TableCell>
+                          <TableCell>{purchase.quantity}</TableCell>
+                          <TableCell>${purchase.total_cost.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          No recent purchases found
+                        </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        No recent purchases found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </TabsContent>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 };
 
