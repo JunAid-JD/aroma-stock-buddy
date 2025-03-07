@@ -199,6 +199,7 @@ const SKUDependencyMapping = () => {
   const [finishedProductSku, setFinishedProductSku] = useState('');
   const [rawMaterialItems, setRawMaterialItems] = useState<ComponentItem[]>([]);
   const [packagingItems, setPackagingItems] = useState<ComponentItem[]>([]);
+  const [skuValidationError, setSkuValidationError] = useState<string | null>(null);
 
   // Queries
   const { data: dependencies, isLoading: isLoadingDependencies } = useQuery({
@@ -236,24 +237,28 @@ const SKUDependencyMapping = () => {
 
       // Add raw material dependencies
       for (const item of rawMaterialItems) {
-        dependenciesToInsert.push({
-          finished_product_id: productId,
-          raw_material_id: item.material_id,
-          packaging_item_id: null,
-          item_type: 'raw_material',
-          quantity_required: item.quantity
-        });
+        if (item.material_id) {
+          dependenciesToInsert.push({
+            finished_product_id: productId,
+            raw_material_id: item.material_id,
+            packaging_item_id: null,
+            item_type: 'raw_material',
+            quantity_required: item.quantity
+          });
+        }
       }
 
       // Add packaging dependencies
       for (const item of packagingItems) {
-        dependenciesToInsert.push({
-          finished_product_id: productId,
-          raw_material_id: null,
-          packaging_item_id: item.material_id,
-          item_type: 'packaging',
-          quantity_required: item.quantity
-        });
+        if (item.material_id) {
+          dependenciesToInsert.push({
+            finished_product_id: productId,
+            raw_material_id: null,
+            packaging_item_id: item.material_id,
+            item_type: 'packaging',
+            quantity_required: item.quantity
+          });
+        }
       }
 
       if (dependenciesToInsert.length === 0) {
@@ -323,6 +328,7 @@ const SKUDependencyMapping = () => {
     setRawMaterialItems([]);
     setPackagingItems([]);
     setSelectedProduct(null);
+    setSkuValidationError(null);
   };
 
   // Handle add raw material item
@@ -379,21 +385,43 @@ const SKUDependencyMapping = () => {
     setPackagingItems(packagingItems.filter(item => item.id !== itemId));
   };
 
+  // Validate SKU input
+  const validateSku = () => {
+    // Clear previous validation error
+    setSkuValidationError(null);
+    
+    // Trim the SKU to remove any whitespace
+    const trimmedSku = finishedProductSku.trim();
+    
+    // Check if SKU is empty
+    if (!trimmedSku) {
+      setSkuValidationError("Please enter a product SKU");
+      return false;
+    }
+    
+    // Find product by SKU (case insensitive)
+    const product = finishedProducts?.find(p => 
+      p.sku.toLowerCase() === trimmedSku.toLowerCase()
+    );
+    
+    if (!product) {
+      console.log("Available SKUs:", finishedProducts?.map(p => p.sku));
+      console.log("Entered SKU:", trimmedSku);
+      setSkuValidationError("Invalid product SKU. Please enter a valid SKU.");
+      return false;
+    }
+    
+    return product;
+  };
+
   // Handle form submission
   const handleSubmit = async () => {
     console.log("Submitting form with SKU:", finishedProductSku);
     console.log("Available products:", finishedProducts);
     
-    // Find product by SKU
-    const product = finishedProducts?.find(p => p.sku === finishedProductSku);
-    
+    // Validate SKU and get product
+    const product = validateSku();
     if (!product) {
-      console.error("Product not found with SKU:", finishedProductSku);
-      toast({
-        title: "Error",
-        description: "Invalid product SKU. Please enter a valid SKU.",
-        variant: "destructive",
-      });
       return;
     }
 
@@ -438,6 +466,28 @@ const SKUDependencyMapping = () => {
       deleteDependencyMutation.mutate(selectedDependency.finished_product_id);
     }
   };
+
+  // Listen for realtime updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('sku-dependencies-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sku_dependencies'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['sku_dependencies'] });
+        }
+      )
+      .subscribe();   
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   return (
     <div className="container mx-auto py-6">
@@ -559,7 +609,11 @@ const SKUDependencyMapping = () => {
                 placeholder="Enter finished product SKU"
                 value={finishedProductSku}
                 onChange={(e) => setFinishedProductSku(e.target.value)}
+                className={skuValidationError ? "border-red-500" : ""}
               />
+              {skuValidationError && (
+                <p className="text-red-500 text-sm mt-1">{skuValidationError}</p>
+              )}
               {finishedProducts && (
                 <div className="text-xs text-muted-foreground mt-1">
                   Available SKUs: {finishedProducts.map(p => p.sku).join(', ')}
