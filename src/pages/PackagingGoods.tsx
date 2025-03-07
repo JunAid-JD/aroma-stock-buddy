@@ -58,7 +58,7 @@ const PackagingGoods = () => {
   // Listen for realtime updates
   useEffect(() => {
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('packaging-updates')
       .on(
         'postgres_changes',
         {

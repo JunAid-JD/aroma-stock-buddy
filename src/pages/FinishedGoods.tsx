@@ -47,7 +47,7 @@ const FinishedGoods = () => {
   // Listen for realtime updates
   useEffect(() => {
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('finished-products-updates')
       .on(
         'postgres_changes',
         {
@@ -88,11 +88,9 @@ const FinishedGoods = () => {
           .from("finished_products")
           .update({
             name,
-            type: productType,
             quantity_in_stock,
             volume_config,
             sku,
-            reorder_point,
             updated_at: new Date().toISOString(),
           })
           .eq("id", selectedItem.id);
@@ -101,11 +99,10 @@ const FinishedGoods = () => {
           .from("finished_products")
           .insert({
             name,
-            type: productType,
             quantity_in_stock,
             volume_config,
             sku,
-            reorder_point,
+            unit_price: 0, // This will be calculated by triggers
             updated_at: new Date().toISOString(),
           });
       }

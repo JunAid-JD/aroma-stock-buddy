@@ -79,7 +79,7 @@ const LossRecords = () => {
   // Listen for realtime updates
   useEffect(() => {
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('loss-records-updates')
       .on(
         'postgres_changes',
         {
