@@ -200,6 +200,7 @@ const SKUDependencyMapping = () => {
   const [rawMaterialItems, setRawMaterialItems] = useState<ComponentItem[]>([]);
   const [packagingItems, setPackagingItems] = useState<ComponentItem[]>([]);
   const [skuValidationError, setSkuValidationError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   // Queries
   const { data: dependencies, isLoading: isLoadingDependencies } = useQuery({
@@ -207,7 +208,7 @@ const SKUDependencyMapping = () => {
     queryFn: () => fetchDependencies(searchQuery),
   });
 
-  const { data: finishedProducts } = useQuery({
+  const { data: finishedProducts, isLoading: isLoadingProducts } = useQuery({
     queryKey: ['finished_products'],
     queryFn: fetchFinishedProducts,
   });
@@ -329,6 +330,7 @@ const SKUDependencyMapping = () => {
     setPackagingItems([]);
     setSelectedProduct(null);
     setSkuValidationError(null);
+    setDebugInfo(null);
   };
 
   // Handle add raw material item
@@ -389,6 +391,7 @@ const SKUDependencyMapping = () => {
   const validateSku = () => {
     // Clear previous validation error
     setSkuValidationError(null);
+    setDebugInfo(null);
     
     // Trim the SKU to remove any whitespace
     const trimmedSku = finishedProductSku.trim();
@@ -399,15 +402,37 @@ const SKUDependencyMapping = () => {
       return false;
     }
     
-    // Find product by SKU (case insensitive)
-    const product = finishedProducts?.find(p => 
-      p.sku.toLowerCase() === trimmedSku.toLowerCase()
-    );
+    // Check if the SKU should be a UUID (for compatibility) or a string that starts with FG-
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedSku);
+    const isFgFormat = trimmedSku.startsWith('FG-');
+    
+    // Set debug info - ONLY for development
+    setDebugInfo({
+      enteredSku: trimmedSku,
+      isUuid,
+      isFgFormat,
+      availableSkus: finishedProducts?.map(p => p.sku),
+    });
+    
+    // Find product either by UUID or by SKU string
+    let product = null;
+    if (finishedProducts) {
+      if (isUuid) {
+        // If UUID format, find product by exact ID match
+        product = finishedProducts.find(p => p.id === trimmedSku || p.sku === trimmedSku);
+      } else if (isFgFormat) {
+        // If FG- format, find product by SKU
+        product = finishedProducts.find(p => 
+          p.sku.toLowerCase() === trimmedSku.toLowerCase()
+        );
+      } else {
+        setSkuValidationError("Invalid SKU format. SKU should start with 'FG-' (e.g., FG-mango12345)");
+        return false;
+      }
+    }
     
     if (!product) {
-      console.log("Available SKUs:", finishedProducts?.map(p => p.sku));
-      console.log("Entered SKU:", trimmedSku);
-      setSkuValidationError("Invalid product SKU. Please enter a valid SKU.");
+      setSkuValidationError("Product not found. Please enter a valid SKU.");
       return false;
     }
     
@@ -417,7 +442,6 @@ const SKUDependencyMapping = () => {
   // Handle form submission
   const handleSubmit = async () => {
     console.log("Submitting form with SKU:", finishedProductSku);
-    console.log("Available products:", finishedProducts);
     
     // Validate SKU and get product
     const product = validateSku();
@@ -606,7 +630,7 @@ const SKUDependencyMapping = () => {
             <div>
               <h3 className="font-medium mb-2">Finished Product SKU</h3>
               <Input
-                placeholder="Enter finished product SKU"
+                placeholder="Enter finished product SKU (e.g., FG-mango12345)"
                 value={finishedProductSku}
                 onChange={(e) => setFinishedProductSku(e.target.value)}
                 className={skuValidationError ? "border-red-500" : ""}
@@ -614,9 +638,25 @@ const SKUDependencyMapping = () => {
               {skuValidationError && (
                 <p className="text-red-500 text-sm mt-1">{skuValidationError}</p>
               )}
-              {finishedProducts && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  Available SKUs: {finishedProducts.map(p => p.sku).join(', ')}
+              {isLoadingProducts ? (
+                <p className="text-xs text-muted-foreground mt-1">Loading products...</p>
+              ) : finishedProducts && finishedProducts.length > 0 ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  SKUs must start with "FG-" (e.g., FG-mango12345)
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  No products found. Please add a finished product first.
+                </p>
+              )}
+              
+              {/* Debug info - only for development troubleshooting */}
+              {debugInfo && (
+                <div className="mt-2 p-2 bg-gray-100 text-xs rounded">
+                  <p>Debug Info: Entered SKU: {debugInfo.enteredSku}</p>
+                  <p>Is UUID format: {debugInfo.isUuid ? 'Yes' : 'No'}</p>
+                  <p>Is FG- format: {debugInfo.isFgFormat ? 'Yes' : 'No'}</p>
+                  <p>Available SKUs: {debugInfo.availableSkus?.join(', ') || 'None'}</p>
                 </div>
               )}
             </div>
