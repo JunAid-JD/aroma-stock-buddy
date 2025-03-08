@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getChannelName } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -46,8 +46,9 @@ const FinishedGoods = () => {
 
   // Listen for realtime updates
   useEffect(() => {
+    const channelName = getChannelName('finished-products');
     const channel = supabase
-      .channel('finished-products-updates')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -79,6 +80,16 @@ const FinishedGoods = () => {
   const handleSubmit = async (data: any) => {
     try {
       const { sku, name, volume_config, quantity_in_stock, reorder_point } = data;
+      
+      // Validate SKU format
+      if (!sku.startsWith('FG-')) {
+        toast({
+          title: "Invalid SKU Format",
+          description: "SKU for finished goods must start with 'FG-'",
+          variant: "destructive",
+        });
+        return;
+      }
       
       // Always set the type correctly based on volume_config
       const productType = volume_config.startsWith('essential') ? 'essential_oil' : 'carrier_oil';

@@ -46,21 +46,33 @@ const FinishedProductForm = ({ formData, onChange }: FinishedProductFormProps) =
             return;
           }
           
-          // Check for dependencies in sku_dependencies table
+          // Check for dependencies in sku_dependencies table using finished_product_sku field
           const { data: dependencies, error: depsError } = await supabase
             .from("sku_dependencies")
             .select(`
               id,
               finished_product_id,
-              finished_products(name, sku)
+              finished_product_sku
             `)
-            .eq("finished_products.sku", formData.sku)
+            .eq("finished_product_sku", formData.sku)
             .maybeSingle();
           
-          if (!depsError && dependencies && dependencies.finished_products) {
-            setDependencyExists(true);
-            setProductName(dependencies.finished_products.name);
-            onChange('name', dependencies.finished_products.name);
+          if (!depsError && dependencies) {
+            // If we found a dependency using the sku, now get the product name
+            const { data: productData, error: productFetchError } = await supabase
+              .from("finished_products")
+              .select("name")
+              .eq("sku", formData.sku)
+              .maybeSingle();
+              
+            if (!productFetchError && productData) {
+              setDependencyExists(true);
+              setProductName(productData.name);
+              onChange('name', productData.name);
+            } else {
+              setDependencyExists(false);
+              setProductName(null);
+            }
           } else {
             setDependencyExists(false);
             setProductName(null);
@@ -85,8 +97,11 @@ const FinishedProductForm = ({ formData, onChange }: FinishedProductFormProps) =
           value={formData.sku || ''}
           onChange={(e) => onChange('sku', e.target.value)}
           required
-          placeholder="Enter product SKU"
+          placeholder="Enter product SKU (e.g., FG-mango12345)"
         />
+        <p className="text-xs text-muted-foreground mt-1">
+          SKU should start with "FG-" for finished goods
+        </p>
       </div>
 
       {dependencyExists && productName && (

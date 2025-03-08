@@ -29,7 +29,19 @@ const ItemFormDialog = ({ isOpen, onClose, onSubmit, item, type }: ItemFormDialo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    
     try {
+      // For finished products, ensure the SKU follows the correct format
+      if (type === 'finished' && !formData.sku?.startsWith('FG-')) {
+        toast({
+          title: "Invalid SKU Format",
+          description: "SKU for finished goods must start with 'FG-'",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
       await onSubmit(formData);
       toast({
         title: "Success",
