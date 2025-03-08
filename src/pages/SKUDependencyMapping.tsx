@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +10,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Plus, Pencil, Trash, X, Search } from "lucide-react";
 import { format } from "date-fns";
 
-// Interface for SKU dependency
 interface SKUDependency {
   id: string;
   finished_product_id: string;
@@ -40,7 +38,6 @@ interface SKUDependency {
   };
 }
 
-// Interface for component item in the form
 interface ComponentItem {
   id: string;
   material_id: string;
@@ -48,7 +45,6 @@ interface ComponentItem {
   quantity: number;
 }
 
-// Fetch all dependencies with related data
 const fetchDependencies = async (searchQuery: string = '') => {
   let query = supabase
     .from("sku_dependencies")
@@ -82,7 +78,6 @@ const fetchDependencies = async (searchQuery: string = '') => {
   return data as SKUDependency[];
 };
 
-// Fetch all finished products
 const fetchFinishedProducts = async () => {
   const { data, error } = await supabase
     .from("finished_products")
@@ -93,7 +88,6 @@ const fetchFinishedProducts = async () => {
   return data || [];
 };
 
-// Fetch all raw materials
 const fetchRawMaterials = async () => {
   const { data, error } = await supabase
     .from("raw_materials")
@@ -104,7 +98,6 @@ const fetchRawMaterials = async () => {
   return data || [];
 };
 
-// Fetch all packaging items
 const fetchPackagingItems = async () => {
   const { data, error } = await supabase
     .from("packaging_items")
@@ -115,7 +108,6 @@ const fetchPackagingItems = async () => {
   return data || [];
 };
 
-// Group dependencies by finished product
 const groupDependenciesByProduct = (dependencies: SKUDependency[]) => {
   const grouped: Record<string, {
     finished_product_id: string;
@@ -149,7 +141,6 @@ const groupDependenciesByProduct = (dependencies: SKUDependency[]) => {
       };
     }
 
-    // Add component to the product
     if (dep.item_type === 'raw_material' && dep.raw_materials) {
       grouped[productId].components.push({
         id: dep.id,
@@ -170,7 +161,6 @@ const groupDependenciesByProduct = (dependencies: SKUDependency[]) => {
       });
     }
 
-    // Update timestamps to most recent
     const depCreatedAt = new Date(dep.created_at);
     const depUpdatedAt = new Date(dep.updated_at);
     const groupCreatedAt = new Date(grouped[productId].created_at);
@@ -202,7 +192,6 @@ const SKUDependencyMapping = () => {
   const [skuValidationError, setSkuValidationError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>(null);
 
-  // Queries
   const { data: dependencies, isLoading: isLoadingDependencies } = useQuery({
     queryKey: ['sku_dependencies', searchQuery],
     queryFn: () => fetchDependencies(searchQuery),
@@ -223,24 +212,20 @@ const SKUDependencyMapping = () => {
     queryFn: fetchPackagingItems,
   });
 
-  // Group dependencies by product
   const groupedDependencies = dependencies ? groupDependenciesByProduct(dependencies) : [];
 
-  // Add dependency mutation
   const addDependencyMutation = useMutation({
-    mutationFn: async ({ productId, rawMaterialItems, packagingItems }: {
-      productId: string,
+    mutationFn: async ({ productSku, rawMaterialItems, packagingItems }: {
+      productSku: string,
       rawMaterialItems: ComponentItem[],
       packagingItems: ComponentItem[]
     }) => {
-      // Create an array to hold all the dependencies to insert
       const dependenciesToInsert = [];
 
-      // Add raw material dependencies
       for (const item of rawMaterialItems) {
         if (item.material_id) {
           dependenciesToInsert.push({
-            finished_product_id: productId,
+            finished_product_sku: productSku,
             raw_material_id: item.material_id,
             packaging_item_id: null,
             item_type: 'raw_material',
@@ -249,11 +234,10 @@ const SKUDependencyMapping = () => {
         }
       }
 
-      // Add packaging dependencies
       for (const item of packagingItems) {
         if (item.material_id) {
           dependenciesToInsert.push({
-            finished_product_id: productId,
+            finished_product_sku: productSku,
             raw_material_id: null,
             packaging_item_id: item.material_id,
             item_type: 'packaging',
@@ -293,7 +277,6 @@ const SKUDependencyMapping = () => {
     },
   });
 
-  // Delete dependency mutation
   const deleteDependencyMutation = useMutation({
     mutationFn: async (productId: string) => {
       const { error } = await supabase
@@ -323,7 +306,6 @@ const SKUDependencyMapping = () => {
     },
   });
 
-  // Reset form state
   const resetForm = () => {
     setFinishedProductSku('');
     setRawMaterialItems([]);
@@ -333,7 +315,6 @@ const SKUDependencyMapping = () => {
     setDebugInfo(null);
   };
 
-  // Handle add raw material item
   const addRawMaterialItem = () => {
     setRawMaterialItems([
       ...rawMaterialItems,
@@ -341,7 +322,6 @@ const SKUDependencyMapping = () => {
     ]);
   };
 
-  // Handle add packaging item
   const addPackagingItem = () => {
     setPackagingItems([
       ...packagingItems,
@@ -349,109 +329,76 @@ const SKUDependencyMapping = () => {
     ]);
   };
 
-  // Handle raw material selection change
   const handleRawMaterialChange = (itemId: string, materialId: string) => {
     setRawMaterialItems(rawMaterialItems.map(item => 
       item.id === itemId ? { ...item, material_id: materialId } : item
     ));
   };
 
-  // Handle raw material quantity change
   const handleRawMaterialQuantityChange = (itemId: string, quantity: number) => {
     setRawMaterialItems(rawMaterialItems.map(item => 
       item.id === itemId ? { ...item, quantity } : item
     ));
   };
 
-  // Handle packaging selection change
   const handlePackagingChange = (itemId: string, materialId: string) => {
     setPackagingItems(packagingItems.map(item => 
       item.id === itemId ? { ...item, material_id: materialId } : item
     ));
   };
 
-  // Handle packaging quantity change
   const handlePackagingQuantityChange = (itemId: string, quantity: number) => {
     setPackagingItems(packagingItems.map(item => 
       item.id === itemId ? { ...item, quantity } : item
     ));
   };
 
-  // Remove raw material item
   const removeRawMaterialItem = (itemId: string) => {
     setRawMaterialItems(rawMaterialItems.filter(item => item.id !== itemId));
   };
 
-  // Remove packaging item
   const removePackagingItem = (itemId: string) => {
     setPackagingItems(packagingItems.filter(item => item.id !== itemId));
   };
 
-  // Validate SKU input
   const validateSku = () => {
-    // Clear previous validation error
     setSkuValidationError(null);
     setDebugInfo(null);
     
-    // Trim the SKU to remove any whitespace
     const trimmedSku = finishedProductSku.trim();
     
-    // Check if SKU is empty
     if (!trimmedSku) {
       setSkuValidationError("Please enter a product SKU");
       return false;
     }
     
-    // Check if the SKU should be a UUID (for compatibility) or a string that starts with FG-
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedSku);
     const isFgFormat = trimmedSku.startsWith('FG-');
     
-    // Set debug info - ONLY for development
     setDebugInfo({
       enteredSku: trimmedSku,
-      isUuid,
+      isUuid: false,
       isFgFormat,
       availableSkus: finishedProducts?.map(p => p.sku),
     });
     
-    // Find product either by UUID or by SKU string
-    let product = null;
-    if (finishedProducts) {
-      if (isUuid) {
-        // If UUID format, find product by exact ID match
-        product = finishedProducts.find(p => p.id === trimmedSku || p.sku === trimmedSku);
-      } else if (isFgFormat) {
-        // If FG- format, find product by SKU
-        product = finishedProducts.find(p => 
-          p.sku.toLowerCase() === trimmedSku.toLowerCase()
-        );
-      } else {
-        setSkuValidationError("Invalid SKU format. SKU should start with 'FG-' (e.g., FG-mango12345)");
-        return false;
-      }
-    }
-    
-    if (!product) {
-      setSkuValidationError("Product not found. Please enter a valid SKU.");
+    if (!isFgFormat) {
+      setSkuValidationError("Invalid SKU format. SKU should start with 'FG-' (e.g., FG-mango12345)");
       return false;
     }
     
-    return product;
+    return trimmedSku;
   };
 
-  // Handle form submission
   const handleSubmit = async () => {
     console.log("Submitting form with SKU:", finishedProductSku);
     
-    // Validate SKU and get product
-    const product = validateSku();
-    if (!product) {
+    const validSku = validateSku();
+    if (!validSku) {
       return;
     }
 
-    console.log("Found product:", product);
+    console.log("Using SKU:", validSku);
 
-    // Validate items
     const validRawMaterials = rawMaterialItems.filter(item => item.material_id);
     const validPackagingItems = packagingItems.filter(item => item.material_id);
 
@@ -464,34 +411,29 @@ const SKUDependencyMapping = () => {
       return;
     }
 
-    // Submit form
     addDependencyMutation.mutate({
-      productId: product.id,
+      productSku: validSku,
       rawMaterialItems: validRawMaterials,
       packagingItems: validPackagingItems
     });
   };
 
-  // View dependency details
   const viewDependency = (dependency: any) => {
     setSelectedDependency(dependency);
     setIsViewDialogOpen(true);
   };
 
-  // Confirm delete dependency
   const confirmDeleteDependency = (dependency: any) => {
     setSelectedDependency(dependency);
     setIsDeleteDialogOpen(true);
   };
 
-  // Execute delete dependency
   const executeDeletion = () => {
     if (selectedDependency) {
       deleteDependencyMutation.mutate(selectedDependency.finished_product_id);
     }
   };
 
-  // Listen for realtime updates
   useEffect(() => {
     const channel = supabase
       .channel('sku-dependencies-updates')
@@ -529,7 +471,6 @@ const SKUDependencyMapping = () => {
           </Button>
         </div>
 
-        {/* Search */}
         <div className="relative w-full">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
@@ -540,7 +481,6 @@ const SKUDependencyMapping = () => {
           />
         </div>
 
-        {/* Dependencies Table */}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -615,7 +555,6 @@ const SKUDependencyMapping = () => {
         </div>
       </div>
 
-      {/* Add Dependency Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
           <DialogHeader>
@@ -626,7 +565,6 @@ const SKUDependencyMapping = () => {
           </DialogHeader>
 
           <div className="space-y-6 py-4">
-            {/* Finished Product SKU */}
             <div>
               <h3 className="font-medium mb-2">Finished Product SKU</h3>
               <Input
@@ -638,19 +576,10 @@ const SKUDependencyMapping = () => {
               {skuValidationError && (
                 <p className="text-red-500 text-sm mt-1">{skuValidationError}</p>
               )}
-              {isLoadingProducts ? (
-                <p className="text-xs text-muted-foreground mt-1">Loading products...</p>
-              ) : finishedProducts && finishedProducts.length > 0 ? (
-                <p className="text-xs text-muted-foreground mt-1">
-                  SKUs must start with "FG-" (e.g., FG-mango12345)
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground mt-1">
-                  No products found. Please add a finished product first.
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                SKUs must start with "FG-" (e.g., FG-mango12345). You can create dependencies for new products.
+              </p>
               
-              {/* Debug info - only for development troubleshooting */}
               {debugInfo && (
                 <div className="mt-2 p-2 bg-gray-100 text-xs rounded">
                   <p>Debug Info: Entered SKU: {debugInfo.enteredSku}</p>
@@ -661,7 +590,6 @@ const SKUDependencyMapping = () => {
               )}
             </div>
 
-            {/* Raw Materials */}
             <div>
               <h3 className="font-medium mb-2">Raw Materials</h3>
               {rawMaterialItems.map((item) => (
@@ -707,7 +635,6 @@ const SKUDependencyMapping = () => {
               </Button>
             </div>
 
-            {/* Packaging Items */}
             <div>
               <h3 className="font-medium mb-2">Packaging Items</h3>
               {packagingItems.map((item) => (
@@ -781,7 +708,6 @@ const SKUDependencyMapping = () => {
         </DialogContent>
       </Dialog>
 
-      {/* View Components Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -829,7 +755,6 @@ const SKUDependencyMapping = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
