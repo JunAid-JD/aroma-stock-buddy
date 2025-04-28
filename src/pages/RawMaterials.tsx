@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getChannelName } from "@/integrations/supabase/client";
 import DataTable from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -35,16 +35,25 @@ const RawMaterials = () => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
-  const { data: rawMaterials, isLoading } = useQuery({
+  const { data: rawMaterials, isLoading, error } = useQuery({
     queryKey: ["rawMaterials"],
     queryFn: async () => {
+      console.log("Fetching raw materials from Supabase...");
       const { data, error } = await supabase
         .from("raw_materials")
         .select("*")
         .order("name");
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching raw materials:", error);
+        setDebugInfo({ error: error.message, details: error });
+        throw error;
+      }
+      
+      console.log("Raw materials fetched successfully:", data);
+      setDebugInfo({ count: data?.length, sample: data?.[0] });
       
       return data.map(item => ({
         ...item,
@@ -52,12 +61,17 @@ const RawMaterials = () => {
         unit_cost: `Rs. ${item.unit_cost.toFixed(2)}`
       }));
     },
+    retry: 1,
+    staleTime: 30000,
   });
 
   // Listen for realtime updates
   useEffect(() => {
+    console.log("Setting up realtime subscription for raw_materials table");
+    const channelName = getChannelName("raw_materials");
+    
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -65,20 +79,27 @@ const RawMaterials = () => {
           schema: 'public',
           table: 'raw_materials'
         },
-        () => {
+        (payload) => {
+          console.log("Realtime update received:", payload);
           queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
         }
       )
-      .subscribe();   
+      .subscribe((status) => {
+        console.log(`Realtime subscription status: ${status}`);
+      });   
 
     return () => {
+      console.log("Cleaning up realtime subscription");
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
 
   const handleSubmit = async (formData: any) => {
     try {
+      console.log("Submitting form data:", formData);
+      
       if (selectedItem) {
+        console.log(`Updating raw material with ID: ${selectedItem.id}`);
         const { error } = await supabase
           .from("raw_materials")
           .update({
@@ -91,8 +112,18 @@ const RawMaterials = () => {
             updated_at: new Date().toISOString()
           })
           .eq("id", selectedItem.id);
-        if (error) throw error;
+          
+        if (error) {
+          console.error("Error updating raw material:", error);
+          throw error;
+        }
+        
+        toast({
+          title: "Success",
+          description: "Raw material updated successfully.",
+        });
       } else {
+        console.log("Creating new raw material");
         const { error } = await supabase
           .from("raw_materials")
           .insert({
@@ -103,11 +134,27 @@ const RawMaterials = () => {
             unit_cost: formData.unit_cost,
             reorder_point: formData.reorder_point
           });
-        if (error) throw error;
+          
+        if (error) {
+          console.error("Error creating raw material:", error);
+          throw error;
+        }
+        
+        toast({
+          title: "Success",
+          description: "Raw material created successfully.",
+        });
       }
+      
       await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+      setIsDialogOpen(false);
     } catch (error: any) {
-      throw error;
+      console.error("Error in handleSubmit:", error);
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -115,12 +162,16 @@ const RawMaterials = () => {
     if (!selectedItem) return;
 
     try {
+      console.log(`Deleting raw material with ID: ${selectedItem.id}`);
       const { error } = await supabase
         .from("raw_materials")
         .delete()
         .eq("id", selectedItem.id);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error deleting raw material:", error);
+        throw error;
+      }
 
       await queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
       toast({
@@ -130,6 +181,7 @@ const RawMaterials = () => {
       setIsDeleteDialogOpen(false);
       setSelectedItem(null);
     } catch (error: any) {
+      console.error("Error in handleDelete:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to delete item.",
@@ -153,6 +205,24 @@ const RawMaterials = () => {
     setIsDeleteDialogOpen(true);
   };
 
+  if (error) {
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        <h2 className="text-3xl font-bold tracking-tight text-red-600">Error Loading Raw Materials</h2>
+        <p className="text-muted-foreground">{(error as Error).message}</p>
+        <Button onClick={() => queryClient.invalidateQueries({ queryKey: ["rawMaterials"] })}>
+          Retry
+        </Button>
+        {debugInfo && (
+          <div className="mt-4 p-4 bg-slate-100 rounded-md">
+            <h3 className="text-lg font-semibold mb-2">Debug Information</h3>
+            <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(debugInfo, null, 2)}</pre>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -167,6 +237,16 @@ const RawMaterials = () => {
           Add Raw Material
         </Button>
       </div>
+      
+      {debugInfo && (
+        <div className="p-2 bg-slate-50 rounded-md text-xs">
+          <p>Debug: {rawMaterials ? `${rawMaterials.length} items loaded` : 'No data'}</p>
+          <pre className="whitespace-pre-wrap overflow-auto max-h-24">
+            {JSON.stringify(debugInfo, null, 2)}
+          </pre>
+        </div>
+      )}
+      
       <DataTable
         columns={columns}
         data={rawMaterials || []}
@@ -203,6 +283,22 @@ const RawMaterials = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      <div className="mt-4">
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            console.log("Manual refresh triggered");
+            queryClient.invalidateQueries({ queryKey: ["rawMaterials"] });
+            toast({
+              title: "Refreshing",
+              description: "Fetching latest data from server.",
+            });
+          }}
+        >
+          Refresh Data
+        </Button>
+      </div>
     </div>
   );
 };

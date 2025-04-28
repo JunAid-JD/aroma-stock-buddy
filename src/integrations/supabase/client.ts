@@ -18,9 +18,17 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   db: {
     schema: 'public',
   },
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
 });
 
 // Helper function to create unique channel names
 export const getChannelName = (tableName: string, suffix = '') => {
-  return `${tableName}-updates${suffix ? `-${suffix}` : ''}`;
+  const randomId = Math.random().toString(36).substring(2, 10);
+  return `${tableName}-updates-${randomId}${suffix ? `-${suffix}` : ''}`;
 };
+
+// Debug initialization
+console.log("Supabase client initialized with URL:", SUPABASE_URL);
